@@ -26,7 +26,7 @@ export type CardFlip = {
     cardPosition: number           // Which card did the user flip?
     outcome: 'gain'|'loss'         // was the flip a gain or a loss?
     roundScoreAfterFlip: number    // What is the round's score after the flip?
-    msSincePreviousFlip: number    // How long has it been since the participant last flipped a card?
+    msSincePreviousFlip: number    // ms since the previous flip (or since the round started, for the first flip)
 }
 
 // helper type for round response data structure
@@ -40,10 +40,11 @@ export type RoundResponse = {
     endReason: RoundEndReason  // Why did the round end?
     gainCardsFlipped: number   // How many gain cards were flipped?
     trialScore: number         // What is the trials score at the end of this round?
+    roundScore: number          // The score gained or lost during this specific round
 }
 
 // Which phase of the trial is the user on
-export type Phase = 'welcome' | 'task'  //Will have more phases: ex. practice, complete, setup
+export type Phase = 'welcome' | 'task' | 'complete'  //Will have more phases: ex. practice, complete, setup
 
 // The user's sessionData
 export type SessionData = {
@@ -52,7 +53,7 @@ export type SessionData = {
     trialConfig: TrialConfig            // The settings for the entire trial
     roundConfigs: RoundConfig[]         // The set of settings for each individual round
     roundResponses: RoundResponse[]     // The set of outcomes for each round
-    date: string                        // Timestamp data for session (was useful for PID fixing in the past)
+    localDate: string                        // Timestamp data for session (was useful for PID fixing in the past)
     sessionStart: string
 }
 
