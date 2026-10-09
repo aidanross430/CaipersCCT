@@ -1,0 +1,22 @@
+node_modules
+dist
+out
+.DS_Store
+.eslintcache
+*.log*
+
+# TypeScript incremental build caches
+*.tsbuildinfo
+
+# Test coverage reports
+coverage
+
+# Local environment / secrets (API keys for the LLM)
+.env
+.env.*
+!.env.example
+
+# Participant data — NEVER COMMIT
+data/
+exports/
+*.csv
