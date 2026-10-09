@@ -70,8 +70,22 @@ export function placeLossCards(numberLossCards: number, totalCards: number, rng:
 // }
 
 // If wanted, rigged rounds that prevent data censorship
-// function assignRigging(rounds: Condition[], trial_config: TrialConfig, rng: () => number) {
-// }
+export function assignRigging(rounds: RoundConfig[], config: DesignConfig, rng: () => number): RoundConfig[] {
+  // randomly pick rounds to be rigged. The indexes of these rounds are stored in the roundIndexes array
+  const riggedIndexes = new Set(shuffle(rounds.map((_, i) => i), rng).slice(0, config.rigging.roundsRigged))
+
+  return rounds.map((round, i) => 
+    // Iterate through each round, and rig any rounds whose indexes match riggedIndexes
+    riggedIndexes.has(i)
+    ? {
+      ...round,
+      rigged: true,
+      lossOnFlipNum: round.totalCards - round.numberLossCards,  // A rigged match has the loss card on the last possible flip
+      lossPositions: []
+    }
+    : round
+  )
+}
 
 // Make sure the provided round configs make sense
 // export function validateRoundConfig() {
@@ -86,10 +100,8 @@ export function buildRoundConfigs(config: DesignConfig, seed: number): RoundConf
     // Build condition array and shuffle it so each condition appears randomly
     const conditions = shuffle(buildConditions(config), rng)
 
-    // TODO: Assign rigged rounds and practice rounds
-
-    // Return a conditon array that is indexed with loss cards placed.
-    return conditions.map((condition, i) => ({
+    // Build the conditon array that is indexed with loss cards placed.
+    const rounds = conditions.map((condition, i) => ({
         roundIndex: i,
         isPractice: false,
         ...condition,
@@ -98,4 +110,7 @@ export function buildRoundConfigs(config: DesignConfig, seed: number): RoundConf
         rigged: false,
         lossOnFlipNum: null
     }))
+
+    // Assign the rounds that are supposed to be rigged. Return the array
+    return assignRigging(rounds, config, rng)
 }

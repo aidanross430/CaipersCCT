@@ -227,6 +227,16 @@ button {
   color: var(--body);
 }
 
+/* ---------- Complete ---------- */
+/* .welcome p sets body text styles, so this needs the extra .welcome to win */
+.welcome .final-score {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  margin: -16px 0 32px;
+}
+
 /* ---------- Between rounds ---------- */
 .between-rounds {
   min-height: 100vh;

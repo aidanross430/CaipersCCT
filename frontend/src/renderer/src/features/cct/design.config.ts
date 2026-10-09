@@ -12,8 +12,7 @@ export type DesignConfig = {
   repititionsPerCondition: number
   // practiceRounds: Omit<RoundConfig, 'roundIndex'>[]   // listed explicitly, not generated
   rigging: {
-    roundsRigged: number             // or a proportion
-    lossFlipRange: [number, number]  // range that lossOnFlipNum is drawn from
+    roundsRigged: number             
   }
 }
 
@@ -25,7 +24,6 @@ export const DEFAULT_DESIGN: DesignConfig = {
   lossCardCounts: [1, 2, 3],
   repititionsPerCondition: 1,
   rigging: {
-    roundsRigged: 3,
-    lossFlipRange: [30, 31]
+    roundsRigged: 27,
   }
 }

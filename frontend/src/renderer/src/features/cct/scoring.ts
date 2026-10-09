@@ -13,9 +13,6 @@ export type RoundState = {
     lastEventAt: number     // ms timestamp of the round start or the most recent flip
 }
 
-// Timestamps (now) are passed in rather than read inside these functions so they stay
-// pure and tests can control timing. The task page should pass performance.now().
-
 // now should be the moment the cards become clickable, so the first flip's time
 // doesn't include rendering or any between-round screen
 export function startRound(config: RoundConfig, now: number): RoundState {
@@ -33,7 +30,8 @@ export function startRound(config: RoundConfig, now: number): RoundState {
 export function resolveFlip(config: RoundConfig, cardPosition: number, flipsSoFar: number): 'gain' | 'loss' {
     // Throw an error if the round is rigged
     if (config.rigged) {
-        throw new Error(`Rigged rounds are not implemented yet (round ${config.roundIndex})`)
+        // return loss if this card is rigged to be a loss
+        return flipsSoFar+1 === config.lossOnFlipNum ? 'loss' : 'gain'
     }
     // Check the card position against the Round's loss positions
     return config.lossPositions.includes(cardPosition) ? 'loss' : 'gain'
