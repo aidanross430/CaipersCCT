@@ -4,7 +4,7 @@
 
 import { CardFlip, RoundConfig, RoundEndReason, RoundResponse } from '../../../../shared/types';
 
-type RoundState = {
+export type RoundState = {
     config: RoundConfig
     flips: CardFlip[]
     roundScore: number

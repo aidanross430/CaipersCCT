@@ -1,17 +1,26 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
+import type { JSX, ReactNode } from 'react'
+import type { Phase } from '../../shared/types'
 
 // Logic Imports
 import { Routes, HashRouter, Route, Navigate, useLocation } from 'react-router-dom'
 import { SessionProvider, useSession } from './state/SessionContext'
 
 // Page Imports
-import WelcomePage from './pages/WelcomePage';
-import Task from './pages/Task';
+import WelcomePage from './pages/WelcomePage'
+import Task from './pages/Task'
+import CompletePage from './pages/CompletePage'
+
+// phaseToPath converts the SessionProvider's current phase into url paths.
+// Typed as Record<Phase, string> so adding a phase without a path is a compile error
+const phaseToPath: Record<Phase, string> = {
+  welcome: '/',
+  task: '/task',
+  complete: '/complete'
+}
 
 // The PhaseGuard prevents a participant from forcing themselves out of the current
 // expected phase of the task
-function PhaseGuard({ children }: { children: React.ReactNode }) {
+function PhaseGuard({ children }: { children: ReactNode }): JSX.Element {
   const { session } = useSession()
   const location = useLocation()
   const expected = phaseToPath[session.phase]
@@ -21,21 +30,15 @@ function PhaseGuard({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-// phaseToPath converts the SessionProvider's current phase into url paths
-const phaseToPath = {
-  welcome: '/', setup: '/setup', instructions: '/instructions',
-  practice: '/practice', task: '/task', complete: '/complete'
-} as const
-
-
-export default function App() {
-  return(
+export default function App(): JSX.Element {
+  return (
     <SessionProvider>
       <HashRouter>
         <PhaseGuard>
           <Routes>
-            <Route path='/' element={<WelcomePage/>} />
-            <Route path='/task' element={<Task/>} />
+            <Route path="/" element={<WelcomePage />} />
+            <Route path="/task" element={<Task />} />
+            <Route path="/complete" element={<CompletePage />} />
           </Routes>
         </PhaseGuard>
       </HashRouter>
