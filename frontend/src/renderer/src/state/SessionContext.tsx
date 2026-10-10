@@ -1,6 +1,9 @@
-import { createContext, useContext, useReducer, type ReactNode } from 'react'
+import { createContext, useContext, useReducer, useRef, useState, type ReactNode } from 'react'
 import { RoundResponse, SessionData } from '../../../shared/types'
 import { sessionReducer, initialSession } from '../features/cct/session'
+import { DEFAULT_DESIGN } from '../features/cct/design.config'
+import { buildRoundConfigs } from '../features/cct/design'
+
 
 // This file is responsible for handling data flow to the main process
 // it should call the window.api.* endpoints to transfer each trial's
@@ -11,6 +14,7 @@ type SessionContextValue = {
     startSession: (participantId: string) => void
     completeRound: (response: RoundResponse) => void
     finishSession: () => void
+    saveError: string | null    // message from the last failed save, or null if none failed
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null)
@@ -18,25 +22,49 @@ const SessionContext = createContext<SessionContextValue | null>(null)
 // Holds the state and wraps App
 export function SessionProvider({ children }: {children: ReactNode}) {
     const [session, dispatch] = useReducer(sessionReducer, initialSession)
+    const sessionIdRef = useRef<string | null>(null)
+    const [saveError, setSaveError] = useState<string | null>(null)
 
     // Action Definitions
-    const startSession = (participantId: string): void => {
+    const startSession = async (participantId: string): Promise<void> => {
         const seed = crypto.getRandomValues(new Uint32Array(1))[0]
+        const roundConfigs = buildRoundConfigs(DEFAULT_DESIGN, seed)
         const now = new Date()
-        const startedAt = now.toISOString() // In UTC
+        const sessionStart = now.toISOString() // In UTC
         const localDate = now.toLocaleDateString('en-US')
-        dispatch({type: 'START', participantId, seed, startedAt, localDate})
+        const trialConfig = { ...initialSession.trialConfig, designSeed: seed}
+
+        try {
+            sessionIdRef.current = await window.api.startSession({
+                participantId, trialConfig, roundConfigs, sessionStart, localDate
+            })
+        dispatch({type: 'START', participantId, trialConfig, roundConfigs, sessionStart, localDate})
+        } catch (err) {
+            setSaveError((err as Error).message)
+        }
+        
     }
     const completeRound = (response: RoundResponse): void => {
         dispatch({ type: 'ROUND_COMPLETE', response})
-        // window.api.saveRound endpoint or whatever I call it
+        const id = sessionIdRef.current
+        if (!id) {
+            setSaveError('No active session, round not saved')
+            return
+        }
+        window.api.saveRound(id, response).catch((err) => setSaveError(err.message))
     }
     const finishSession = (): void => {
         dispatch({ type: 'FINISH'})
+        const id = sessionIdRef.current
+        if (!id) {
+            setSaveError('No active session, results file could not be written')
+            return
+        }
+        window.api.terminateSession(id).catch((err) => setSaveError(err.message))
     }
 
     return (
-        <SessionContext.Provider value={{session, startSession, completeRound, finishSession}}>
+        <SessionContext.Provider value={{session, startSession, completeRound, finishSession, saveError}}>
             {children}
         </SessionContext.Provider>
     )

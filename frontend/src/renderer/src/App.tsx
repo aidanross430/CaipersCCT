@@ -9,6 +9,7 @@ import { SessionProvider, useSession } from './state/SessionContext'
 import WelcomePage from './pages/WelcomePage'
 import Task from './pages/Task'
 import CompletePage from './pages/CompletePage'
+import SaveErrorBanner from './components/SaveErrorBanner'
 
 // phaseToPath converts the SessionProvider's current phase into url paths.
 // Typed as Record<Phase, string> so adding a phase without a path is a compile error
@@ -33,6 +34,8 @@ function PhaseGuard({ children }: { children: ReactNode }): JSX.Element {
 export default function App(): JSX.Element {
   return (
     <SessionProvider>
+      {/* Outside the router so it stays visible on every page */}
+      <SaveErrorBanner />
       <HashRouter>
         <PhaseGuard>
           <Routes>

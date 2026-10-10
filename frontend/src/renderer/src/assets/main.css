@@ -80,6 +80,24 @@ button {
   cursor: not-allowed;
 }
 
+/* ---------- Save error banner ---------- */
+.save-error {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--loss-bg);
+  color: var(--loss);
+  border-bottom: 2px solid var(--loss);
+  padding: 12px 24px;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.save-error-detail {
+  display: block;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
 /* ---------- Welcome / Complete ---------- */
 .welcome {
   max-width: 1296px;

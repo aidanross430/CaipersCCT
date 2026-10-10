@@ -1,6 +1,10 @@
 // Types will contain typescript logic for the CCT that will need to be shared across
 // electron processes. Things like TrialConfig, TrialResponse, SessionData, Participant info
 // Basically, anything that will be exported or needs to be shared with the LLM/chatbox/advice engine
+import { SessionStartPayload } from "../shared/ipc";
+
+export type SessionFile = SessionStartPayload & { appVersion: string}
+
 
 export type TrialConfig = {
     designSeed: number                      // The rng seed for the design

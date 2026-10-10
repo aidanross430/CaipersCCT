@@ -3,12 +3,10 @@
 // This state machine is used by the hash router to decide which page the 
 // user is on
 
-import { SessionData, TrialConfig, RoundResponse } from '../../../../shared/types';
-import { buildRoundConfigs } from "./design";
-import { DEFAULT_DESIGN } from './design.config';
+import { SessionData, TrialConfig, RoundResponse, RoundConfig } from '../../../../shared/types';
 
 type SessionAction = 
-    | {type: 'START'; participantId: string, seed: number, startedAt: string, localDate: string}
+    | {type: 'START'; participantId: string, trialConfig: TrialConfig, roundConfigs: RoundConfig[], sessionStart:string, localDate: string}
     | {type: 'ROUND_COMPLETE'; response: RoundResponse }
     | {type: 'FINISH'}
 
@@ -32,11 +30,11 @@ export function sessionReducer(state: SessionData, action: SessionAction): Sessi
             return {
                 ...state,
                 participantId: action.participantId,
-                trialConfig: { ...state.trialConfig, designSeed: action.seed },
-                roundConfigs: buildRoundConfigs(DEFAULT_DESIGN, action.seed),
+                trialConfig: action.trialConfig,
+                roundConfigs: action.roundConfigs,
                 phase: 'task',
                 localDate: action.localDate,
-                sessionStart: action.startedAt
+                sessionStart: action.sessionStart
             }
         case "ROUND_COMPLETE":
             return {
