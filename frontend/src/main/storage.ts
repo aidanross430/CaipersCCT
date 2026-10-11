@@ -3,6 +3,7 @@
 import { RoundResponse, SessionFile } from '../shared/types';
 import { mkdir, writeFile, appendFile, readFile } from 'fs/promises'
 import { join } from 'path'
+import { ChatMessage } from '../shared/types';
 
 export async function createSession(dataDir: string, data: SessionFile): Promise<{id, dir}> {
     // Sanitize the pid so that it works in a file name
@@ -28,8 +29,29 @@ const session: SessionFile = JSON.parse(await readFile(join(dir, 'session.json')
     .filter((line) => line.trim() !== '')
     .map((line) => JSON.parse(line))
 
+  // A participant who never uses the chat has no messages.jsonl; that's not an error, they
+  // just get a messages.csv with only the header row
+  const messages = await readOptionalJsonl<ChatMessage>(join(dir, 'messages.jsonl'))
+
   await writeFile(join(dir, 'rounds.csv'), buildRoundsCsv(session, rounds), { flag: 'wx' })
   await writeFile(join(dir, 'flips.csv'), buildFlipsCsv(session, rounds), { flag: 'wx' })
+  await writeFile(join(dir, 'messages.csv'), buildMessagesCsv(session, messages), { flag: 'wx' })
+}
+
+// Reads a .jsonl file into an array, one parsed object per line. Returns an empty array if
+// the file was never created
+async function readOptionalJsonl<T>(path: string): Promise<T[]> {
+  let text: string
+  try {
+    text = await readFile(path, 'utf8')
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
+    throw err
+  }
+  return text
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .map((line) => JSON.parse(line) as T)
 }
 
 // Creates a 'rounds csv' which builds out one round per code\
@@ -76,10 +98,29 @@ function buildFlipsCsv(session: SessionFile, rounds: RoundResponse[]): string {
     return toCsv(header, rows)
 }
 
+// Builds out a csv file with one row per chat message, from either side, in the order sent
+function buildMessagesCsv(session: SessionFile, messages: ChatMessage[]): string {
+    const header = [
+        'participantId', 'roundIndex', 'sentAt', 'sender', 'flipsSoFar', 'text',
+        'adviceCondition', 'suggestedTotalFlips', 'adviceAction', 'source', 'error'
+    ]
+
+    // Advice columns and source are only filled for partner messages, and error only for
+    // system records of a failed reply; other rows leave them empty
+    const rows = messages.map((m) => [
+        session.participantId, m.roundIndex, m.sentAt, m.sender, m.flipsSoFar, m.text,
+        m.advice?.condition, m.advice?.suggestedTotalFlips, m.advice?.action, m.source, m.error
+    ])
+
+    return toCsv(header, rows)
+}
+
 // Csv Building Helper functions
+// Quotes any value containing a comma, quote or line break. Chat text is typed by
+// participants, so it can contain any of these (\r included, from Windows line breaks)
 function csvCell(value: unknown): string {
   const text = String(value ?? '')
-  return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 
 function toCsv(header: string[], rows: unknown[][]): string {
@@ -88,5 +129,9 @@ function toCsv(header: string[], rows: unknown[][]): string {
 
 export async function appendRound(dir: string, response: RoundResponse): Promise<void> {
   await appendFile(join(dir, 'rounds.jsonl'), JSON.stringify(response) + '\n')
+}
+
+export async function appendMessage(dir: string, message: ChatMessage): Promise<void> {
+  await appendFile(join(dir, 'messages.jsonl'), JSON.stringify(message) + '\n')
 }
 

@@ -61,5 +61,26 @@ export type SessionData = {
     sessionStart: string
 }
 
+// Types for the advice engine
 
+// The advice provided to the LLM
+export type Advice = {
+    condition: AdviceCondition      // Risky, optimal, or safe
+    suggestedTotalFlips: number     // How many total flips are suggested this round
+    flipsSoFar: number              // How many flips have there been this round so far
+    action: 'flip' | 'stop'         // What should the user do?
+}
 
+export type AdviceCondition = 'risky' | 'optimal' | 'safe'
+
+// Data structure for holding a single message
+export type ChatMessage = {
+    sender: 'participant' | 'advice_giver' | 'system'  // 'system' = a logged event (e.g. a failed reply), never shown as a chat bubble
+    text: string                            // The message sent
+    sentAt: string
+    roundIndex: number                      // which round
+    flipsSoFar: number
+    advice?: Advice                         // The advice provided for this response.
+    source?: 'llm' | 'fallback'             // Partner messages only: who wrote the text
+    error?: string                          // System records only: why the partner couldn't reply
+}

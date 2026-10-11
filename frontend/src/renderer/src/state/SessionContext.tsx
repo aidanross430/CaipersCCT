@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useRef, useState, type ReactNode } from 'react'
-import { RoundResponse, SessionData } from '../../../shared/types'
+import { RoundResponse, SessionData, ChatMessage } from '../../../shared/types'
 import { sessionReducer, initialSession } from '../features/cct/session'
 import { DEFAULT_DESIGN } from '../features/cct/design.config'
 import { buildRoundConfigs } from '../features/cct/design'
@@ -14,6 +14,7 @@ type SessionContextValue = {
     startSession: (participantId: string) => void
     completeRound: (response: RoundResponse) => void
     finishSession: () => void
+    saveMessage: (message: ChatMessage) => void
     saveError: string | null    // message from the last failed save, or null if none failed
 }
 
@@ -62,9 +63,14 @@ export function SessionProvider({ children }: {children: ReactNode}) {
         }
         window.api.terminateSession(id).catch((err) => setSaveError(err.message))
     }
+    const saveMessage = (message: ChatMessage): void => {
+        const id = sessionIdRef.current
+        if (!id) return setSaveError('No active session, message not saved')
+        window.api.saveMessage(id, message).catch((err: Error) => setSaveError(err.message))
+    }
 
     return (
-        <SessionContext.Provider value={{session, startSession, completeRound, finishSession, saveError}}>
+        <SessionContext.Provider value={{session, startSession, completeRound, finishSession, saveMessage, saveError}}>
             {children}
         </SessionContext.Provider>
     )

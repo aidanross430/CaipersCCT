@@ -6,7 +6,10 @@ import type { RoundResponse } from '../shared/types';
 import { IPC, SessionStartPayload } from '../shared/ipc';
 import { createSession, finishSession, appendRound } from './storage';
 import { createSessionQueue } from './sessionQueue'
-
+import type { ChatRequest } from '../shared/ipc';
+import type { ChatMessage } from '../shared/types';
+import { chatReply } from './llm';
+import { appendMessage } from './storage';
 
 // Sessions created during this run of the app: id -> folder path.
 // The renderer can only refer to sessions that main created.
@@ -70,6 +73,8 @@ app.whenReady().then(() => {
   const dataDir = join(app.getPath('documents'), 'CCT-data')
 
   // IPC handles
+
+  // For CCT functionality
   ipcMain.handle(IPC.roundFinish, async (_event, sessionId: string, response: RoundResponse) => {
     // Look up the folder now, so an unknown session fails straight away instead of queueing
     const dir = sessionDir(sessionId)
@@ -91,6 +96,25 @@ app.whenReady().then(() => {
     sessions.delete(sessionId)
     queue.clear(sessionId)
   })
+
+  // For AI Chatbot functionality
+  ipcMain.handle(IPC.chatReply, async (_event, request: ChatRequest) => {
+    if (
+      typeof request?.system !== 'string' ||
+      !Array.isArray(request.messages) ||
+      request.messages.length === 0 ||
+      !request.messages.every((m) => (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+    ) {
+      throw new Error('Invalid chat request')
+    }
+    return chatReply(request)
+  })
+
+  ipcMain.handle(IPC.messageSave, async (_event, sessionId: string, message: ChatMessage) => {
+    const dir = sessionDir(sessionId)
+    await queue.run(sessionId, () => appendMessage(dir, message))
+  })
+
 
   createWindow()
 

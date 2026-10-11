@@ -19,7 +19,7 @@ export type DesignConfig = {
 export const DEFAULT_DESIGN: DesignConfig = {
   totalCards: 32,
   numRounds: 27,
-  gainAmounts: [10, 120, 30],
+  gainAmounts: [10, 20, 30],
   lossAmounts: [250, 500, 750],
   lossCardCounts: [1, 2, 3],
   repititionsPerCondition: 1,
