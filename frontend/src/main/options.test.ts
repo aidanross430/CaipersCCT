@@ -123,6 +123,7 @@ describe('validateChatConfig', () => {
     riskyFlips: 7,
     safeFlips: 7,
     adviceCondition: 'risky',
+    displayCondition: 'ai',
     personas: { human: { name: 'Pat', avatar: 'P' }, ai: { name: 'Claude', avatar: 'AI' } },
     greeting: 'hi',
     readDelayMs: [600, 1500],
@@ -131,6 +132,12 @@ describe('validateChatConfig', () => {
 
   it('accepts a valid chat config', () => {
     expect(validateChatConfig(valid)).toEqual([])
+  })
+
+  it('rejects an unknown display condition', () => {
+    expect(validateChatConfig({ ...valid, displayCondition: 'Human' })).toContainEqual(
+      expect.stringContaining('displayCondition must be one of "human", "ai"')
+    )
   })
 
   it('rejects an unknown advice condition', () => {

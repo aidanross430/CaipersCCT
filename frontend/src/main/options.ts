@@ -13,6 +13,7 @@ import { createHash } from 'crypto'
 import { join } from 'path'
 import {
   ADVICE_CONDITIONS,
+  DISPLAY_CONDITIONS,
   CONFIG_FILES,
   PROMPT_FILES,
   PROMPT_PLACEHOLDERS,
@@ -158,17 +159,29 @@ export function validateDesignConfig(value: unknown): string[] {
   return problems
 }
 
-const CHAT_KEYS = ['riskyFlips', 'safeFlips', 'adviceCondition', 'personas', 'greeting', 'readDelayMs', 'typingDelayMs']
+const CHAT_KEYS = [
+  'riskyFlips',
+  'safeFlips',
+  'adviceCondition',
+  'displayCondition',
+  'personas',
+  'greeting',
+  'readDelayMs',
+  'typingDelayMs'
+]
 
 export function validateChatConfig(value: unknown): string[] {
   if (!isObject(value)) return ['must be a JSON object, { ... }']
   const problems = unknownKeys(value, CHAT_KEYS)
-  const { riskyFlips, safeFlips, adviceCondition, personas, greeting, readDelayMs, typingDelayMs } = value
+  const { riskyFlips, safeFlips, adviceCondition, displayCondition, personas, greeting, readDelayMs, typingDelayMs } = value
 
   if (!isInt(riskyFlips) || riskyFlips < 0) problems.push(`riskyFlips must be a whole number of 0 or more (got ${show(riskyFlips)})`)
   if (!isInt(safeFlips) || safeFlips < 0) problems.push(`safeFlips must be a whole number of 0 or more (got ${show(safeFlips)})`)
   if (!ADVICE_CONDITIONS.includes(adviceCondition as never)) {
     problems.push(`adviceCondition must be one of ${ADVICE_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(adviceCondition)})`)
+  }
+  if (!DISPLAY_CONDITIONS.includes(displayCondition as never)) {
+    problems.push(`displayCondition must be one of ${DISPLAY_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(displayCondition)})`)
   }
 
   if (!isObject(personas)) {

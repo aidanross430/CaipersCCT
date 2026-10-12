@@ -21,6 +21,18 @@ KEEP THIS FOLDER TOGETHER
   folder somewhere the task can write to (for example the desktop), not inside
   C:\Program Files, and not in a cloud-synced folder unless your protocol allows it.
 
+SETTING THE CONDITIONS
+  Both conditions are set in Options/Chat.config.json, and apply to every session started
+  from this folder until they're changed. Close CaipersCCT, edit the file, start it again.
+
+    "displayCondition": "ai"       the participant is told they're chatting with an AI
+    "displayCondition": "human"    the participant is told they're chatting with a person
+    "adviceCondition":  "risky"    which advice the partner gives
+
+  Values must be written exactly as shown, in lowercase with the quotes. Each session's
+  session.json records the conditions it ran with. Check the file before every
+  participant if conditions change between participants.
+
 CHAT PARTNER
   The chat needs an internet connection and an Anthropic API key. Paste the key into
   Options/api-key.txt (the file explains how), then start CaipersCCT. If that file holds

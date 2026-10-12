@@ -39,6 +39,7 @@ const session: SessionFile = {
       riskyFlips: 7,
       safeFlips: 7,
       adviceCondition: 'risky',
+      displayCondition: 'ai',
       personas: { human: { name: 'Pat', avatar: 'P' }, ai: { name: 'AI', avatar: 'AI' } },
       greeting: 'hi',
       readDelayMs: [0, 0],

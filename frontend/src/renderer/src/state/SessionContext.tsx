@@ -34,7 +34,12 @@ export function SessionProvider({ children }: {children: ReactNode}) {
         const now = new Date()
         const sessionStart = now.toISOString() // In UTC
         const localDate = now.toLocaleDateString('en-US')
-        const trialConfig = { ...initialSession.trialConfig, designSeed: seed}
+        // The display condition comes from Chat.config.json, so it's set per computer/folder
+        const trialConfig = {
+            ...initialSession.trialConfig,
+            designSeed: seed,
+            chatDisplayCondition: options.chat.displayCondition
+        }
 
         try {
             sessionIdRef.current = await window.api.startSession({

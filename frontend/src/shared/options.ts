@@ -1,4 +1,4 @@
-import type { AdviceCondition } from "./types"
+import type { AdviceCondition, TrialConfig } from "./types"
 
 // Holds all of the options imported from files to run the test.
 export type Options = {
@@ -43,6 +43,9 @@ export type PromptPlaceholder = (typeof PROMPT_PLACEHOLDERS)[number]
 // Every advice condition, for checking Chat.config.json at runtime
 export const ADVICE_CONDITIONS = ['risky', 'optimal', 'safe'] as const satisfies readonly AdviceCondition[]
 
+// Every display condition: whether participants are told they are chatting with a person or an AI
+export const DISPLAY_CONDITIONS = ['human', 'ai'] as const satisfies readonly TrialConfig['chatDisplayCondition'][]
+
 // The configuration across the entire trial
 export type DesignConfig = {
   totalCards: number                 // 32
@@ -70,6 +73,7 @@ export type ChatConfig = {
     riskyFlips: number,
     safeFlips: number,
     adviceCondition: AdviceCondition            // which advice policy the partner follows
+    displayCondition: TrialConfig['chatDisplayCondition']  // "human" or "ai": who participants are told they're chatting with
     personas: Record<'human' | 'ai', Persona>
     greeting: string                            // first message shown in the chat
     readDelayMs: [number, number]               // "is typing..." appears after a random delay in this range, as if reading the message first

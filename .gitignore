@@ -9,3 +9,9 @@ desktop.ini
 # Editor
 *.swp
 .idea/
+
+# Electron
+debug.log
+
+# Dev-folder for temporary data
+dev-folder/
