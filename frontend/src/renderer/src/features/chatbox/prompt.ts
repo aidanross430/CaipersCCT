@@ -1,16 +1,10 @@
 // In charge of constructing the prompt that is given to the AI each time the user
 // sends a message
 
-import type { Advice, ChatMessage } from "src/shared/types";
-import type { ChatRequest, ChatTurn } from "../../../../shared/ipc"
-import { Persona } from "./chat.config";
-import { RoundState } from "../cct/scoring";
-
-import identityHuman from './prompts/identity-human.md?raw'
-import identityAi from './prompts/identity-ai.md?raw'
-import style from './prompts/style.md?raw'
-import rules from './prompts/rules.md?raw'
-import situation from './prompts/situation.md?raw'
+import type { Advice, ChatMessage } from '../../../../shared/types'
+import type { ChatRequest, ChatTurn } from '../../../../shared/ipc'
+import type { Options, Persona, PromptPlaceholder } from '../../../../shared/options'
+import type { RoundState } from '../cct/scoring'
 
 
 
@@ -25,14 +19,17 @@ export type PromptInput = {
     round: RoundState
     totalScore: number
     history: ChatMessage[]
+    prompts: Options['prompts']     // the templates from Options/
 }
 
 export function buildPrompt(input: PromptInput): ChatRequest {
-    const { persona, displayCondition, advice, round, totalScore, history} = input
+    const { persona, displayCondition, advice, round, totalScore, history, prompts } = input
 
     // Merges the information needed by each prompt with the relevant round information
     // This array needs to include everything the AI should be able to answer
-    const values = {
+    // Typed against PROMPT_PLACEHOLDERS, so this list and the one the loader checks
+    // templates against can't drift apart
+    const values: Record<PromptPlaceholder, string | number> = {
         partnerName: persona.name,
         roundNumber: round.config.roundIndex + 1,   // 1-based, as participants see it
         gainAmount: round.config.gainAmount,
@@ -46,8 +43,8 @@ export function buildPrompt(input: PromptInput): ChatRequest {
         adviceText: adviceText(advice)
     }
 
-    const identity = displayCondition === 'human' ? identityHuman : identityAi
-    const system = [identity, style, rules, situation]
+    const identity = displayCondition === 'human' ? prompts.identityHuman : prompts.identityAi
+    const system = [identity, prompts.style, prompts.rules, prompts.situation]
         .map((template) => fillTemplate(template,values))
         .join('\n\n')
 

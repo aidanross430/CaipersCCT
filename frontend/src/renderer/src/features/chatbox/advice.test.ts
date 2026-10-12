@@ -3,6 +3,9 @@ import type { RoundConfig } from '../../../../shared/types'
 import { getAdvice } from './advice'
 import { startRound, flipCard, type RoundState } from '../cct/scoring'
 
+// Fixed settings, so these tests don't change when someone edits Chat.config.json
+const SETTINGS = { riskyFlips: 7, safeFlips: 7 }
+
 const config: RoundConfig = {
   roundIndex: 0,
   isPractice: false,
@@ -23,17 +26,17 @@ function roundWithFlips(n: number): RoundState {
 
 describe('getAdvice (risky)', () => {
   it('says to flip before reaching the suggested total', () => {
-    expect(getAdvice(roundWithFlips(0), 'risky').action).toBe('flip')
+    expect(getAdvice(roundWithFlips(0), 'risky', SETTINGS).action).toBe('flip')
   })
 
   it('still says to flip at and past the suggested total', () => {
-    const total = getAdvice(roundWithFlips(0), 'risky').suggestedTotalFlips
-    expect(getAdvice(roundWithFlips(total), 'risky').action).toBe('flip')
-    expect(getAdvice(roundWithFlips(total + 2), 'risky').action).toBe('flip')
+    const total = getAdvice(roundWithFlips(0), 'risky', SETTINGS).suggestedTotalFlips
+    expect(getAdvice(roundWithFlips(total), 'risky', SETTINGS).action).toBe('flip')
+    expect(getAdvice(roundWithFlips(total + 2), 'risky', SETTINGS).action).toBe('flip')
   })
 
   it('keeps the same suggested total throughout the round', () => {
-    const total = getAdvice(roundWithFlips(0), 'risky').suggestedTotalFlips
-    expect(getAdvice(roundWithFlips(5), 'risky').suggestedTotalFlips).toBe(total)
+    const total = getAdvice(roundWithFlips(0), 'risky', SETTINGS).suggestedTotalFlips
+    expect(getAdvice(roundWithFlips(5), 'risky', SETTINGS).suggestedTotalFlips).toBe(total)
   })
 })

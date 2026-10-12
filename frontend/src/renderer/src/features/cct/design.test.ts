@@ -1,6 +1,18 @@
 import { describe, it, expect } from 'vitest'
 import { createRng, buildConditions, shuffle, placeLossCards, buildRoundConfigs } from './design'
-import { DEFAULT_DESIGN, type DesignConfig } from './design.config'
+import type { DesignConfig } from '../../../../shared/options'
+
+// A fixed design for these tests, so they don't change when someone edits Design.config.json.
+// Rigging is off, so every round is a plain one; rigging needs its own tests
+const TEST_DESIGN: DesignConfig = {
+  totalCards: 32,
+  numRounds: 27,
+  gainAmounts: [10, 20, 30],
+  lossAmounts: [250, 500, 750],
+  lossCardCounts: [1, 2, 3],
+  repititionsPerCondition: 1,
+  rigging: { roundsRigged: 0 }
+}
 
 // Draws n values from an rng
 function draw(rng: () => number, n: number): number[] {
@@ -47,7 +59,7 @@ describe('createRng', () => {
 describe('buildConditions', () => {
   // Example minimal design config
   const small: DesignConfig = {
-    ...DEFAULT_DESIGN,
+    ...TEST_DESIGN,
     gainAmounts: [10, 30],
     lossAmounts: [250, 750],
     lossCardCounts: [1, 3],
@@ -59,10 +71,10 @@ describe('buildConditions', () => {
     `${c.gainAmount}/${c.lossAmount}/${c.numberLossCards}`
 
   it('returns gains x losses x loss counts x repetitions conditions', () => {
-    const { gainAmounts, lossAmounts, lossCardCounts, repititionsPerCondition } = DEFAULT_DESIGN
+    const { gainAmounts, lossAmounts, lossCardCounts, repititionsPerCondition } = TEST_DESIGN
     const expected =
       gainAmounts.length * lossAmounts.length * lossCardCounts.length * repititionsPerCondition
-    expect(buildConditions(DEFAULT_DESIGN)).toHaveLength(expected)
+    expect(buildConditions(TEST_DESIGN)).toHaveLength(expected)
   })
 
   it('includes every combination exactly once per repetition', () => {
@@ -153,7 +165,7 @@ describe('shuffle', () => {
   })
 
   it('shuffles conditions without losing any', () => {
-    const conditions = buildConditions(DEFAULT_DESIGN)
+    const conditions = buildConditions(TEST_DESIGN)
     const shuffled = shuffle(conditions, createRng(5))
     expect(shuffled).toHaveLength(conditions.length)
     expect(shuffled).toEqual(expect.arrayContaining(conditions))
@@ -199,10 +211,10 @@ describe('placeLossCards', () => {
 
 describe('buildRoundConfig', () => {
   it('returns an array of round configs with correct number of rounds', () => {
-    const rounds = buildRoundConfigs(DEFAULT_DESIGN, 1)
+    const rounds = buildRoundConfigs(TEST_DESIGN, 1)
 
     expect(Array.isArray(rounds)).toBe(true)
-    expect(rounds.length).toEqual(27)
+    expect(rounds.length).toEqual(TEST_DESIGN.numRounds)
 
     // every round has every RoundConfig field, with the right type.
     // expect.any(Number) matches any number, so this checks shape, not specific values
@@ -213,7 +225,7 @@ describe('buildRoundConfig', () => {
         gainAmount: expect.any(Number),
         lossAmount: expect.any(Number),
         numberLossCards: expect.any(Number),
-        totalCards: DEFAULT_DESIGN.totalCards,
+        totalCards: TEST_DESIGN.totalCards,
         lossPositions: expect.any(Array),
         rigged: false,
         lossOnFlipNum: null
@@ -222,7 +234,7 @@ describe('buildRoundConfig', () => {
   })
 
   it('round indexes are ordered correctly', () => {
-    const rounds = buildRoundConfigs(DEFAULT_DESIGN, 99)
+    const rounds = buildRoundConfigs(TEST_DESIGN, 99)
 
     // pull out the indexes of the round in order and compare them to the expected order
     const indexes = rounds.map((round) => round.roundIndex)
@@ -232,7 +244,7 @@ describe('buildRoundConfig', () => {
   })
 
   it('each condition is unique when repitions=1', () => {
-    const config = { ...DEFAULT_DESIGN, repititionsPerCondition: 1}
+    const config = { ...TEST_DESIGN, repititionsPerCondition: 1}
     const rounds = buildRoundConfigs(config, 100)
 
     // Ensure each key created by the set of conditions is unique
@@ -241,10 +253,10 @@ describe('buildRoundConfig', () => {
   })
 
   it('identical seed gives identical result', () =>  {
-    expect(buildRoundConfigs(DEFAULT_DESIGN, 99)).toEqual(buildRoundConfigs(DEFAULT_DESIGN, 99))
+    expect(buildRoundConfigs(TEST_DESIGN, 99)).toEqual(buildRoundConfigs(TEST_DESIGN, 99))
   })
 
   it('different seeds give different results', () => {
-    expect(buildRoundConfigs(DEFAULT_DESIGN, 99)).not.toEqual(buildRoundConfigs(DEFAULT_DESIGN, 100))
+    expect(buildRoundConfigs(TEST_DESIGN, 99)).not.toEqual(buildRoundConfigs(TEST_DESIGN, 100))
   })
 })

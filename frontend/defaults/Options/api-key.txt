@@ -1,0 +1,11 @@
+# Claude API key for the chat partner.
+#
+# Paste the key on its own line below this text (it starts with "sk-ant-"), save, and
+# restart CaipersCCT. Lines starting with # are ignored.
+#
+# Keep this file private: anyone with the key can use it, and billing is performed
+# through the traffic on the key. Anyone with the key could basically keep using it and
+# endlessly bill your account
+#
+# If no key is entered here, CaipersCCT uses the ANTHROPIC_API_KEY environment variable
+# instead, if one is set on this computer.

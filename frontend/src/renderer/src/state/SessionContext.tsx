@@ -1,7 +1,7 @@
 import { createContext, useContext, useReducer, useRef, useState, type ReactNode } from 'react'
 import { RoundResponse, SessionData, ChatMessage } from '../../../shared/types'
 import { sessionReducer, initialSession } from '../features/cct/session'
-import { DEFAULT_DESIGN } from '../features/cct/design.config'
+import { useOptions } from './optionsContext'
 import { buildRoundConfigs } from '../features/cct/design'
 
 
@@ -25,11 +25,12 @@ export function SessionProvider({ children }: {children: ReactNode}) {
     const [session, dispatch] = useReducer(sessionReducer, initialSession)
     const sessionIdRef = useRef<string | null>(null)
     const [saveError, setSaveError] = useState<string | null>(null)
+    const options = useOptions()
 
     // Action Definitions
     const startSession = async (participantId: string): Promise<void> => {
         const seed = crypto.getRandomValues(new Uint32Array(1))[0]
-        const roundConfigs = buildRoundConfigs(DEFAULT_DESIGN, seed)
+        const roundConfigs = buildRoundConfigs(options.design, seed)
         const now = new Date()
         const sessionStart = now.toISOString() // In UTC
         const localDate = now.toLocaleDateString('en-US')

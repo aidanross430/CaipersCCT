@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type JSX } from 'react'
 import type { ChatMessage } from '../../../../shared/types'
-import type { Persona } from '../../features/chatbox/chat.config'
+import type { Persona } from '../../../../shared/options'
 
 type ChatPanelProps = {
   persona: Persona

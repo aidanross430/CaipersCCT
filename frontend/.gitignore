@@ -20,3 +20,8 @@ coverage
 data/
 exports/
 *.csv
+# Packaged builds (npm run dist)
+release/
+# API keys: never commit one. The template in defaults/ holds instructions only
+api-key.txt
+!defaults/Options/api-key.txt

@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { mkdtemp, readFile, rm } from 'fs/promises'
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import type { ChatMessage, RoundResponse, SessionFile } from '../shared/types'
-import { appendMessage, appendRound, createSession, finishSession } from './storage'
+import type { Options } from '../shared/options'
+import { appendMessage, appendRound, checkWritable, createSession, finishSession } from './storage'
 
 const session: SessionFile = {
   participantId: 'P001',
@@ -23,7 +24,29 @@ const session: SessionFile = {
   ],
   sessionStart: '2026-10-11T12:00:00.000Z',
   localDate: '10/11/2026',
-  appVersion: 'test'
+  appVersion: 'test',
+  options: {
+    design: {
+      totalCards: 32,
+      numRounds: 1,
+      gainAmounts: [10],
+      lossAmounts: [250],
+      lossCardCounts: [1],
+      repititionsPerCondition: 1,
+      rigging: { roundsRigged: 0 }
+    },
+    chat: {
+      riskyFlips: 7,
+      safeFlips: 7,
+      adviceCondition: 'risky',
+      personas: { human: { name: 'Pat', avatar: 'P' }, ai: { name: 'AI', avatar: 'AI' } },
+      greeting: 'hi',
+      readDelayMs: [0, 0],
+      typingDelayMs: [0, 0]
+    },
+    prompts: { identityHuman: 'h', identityAi: 'a', style: 's', rules: 'r', situation: 's' }
+  } satisfies Options,
+  optionsHash: 'test'
 }
 
 const round: RoundResponse = {
@@ -105,5 +128,36 @@ describe('messages.csv', () => {
 
     const rows = csvRows(await readFile(join(dir, 'messages.csv'), 'utf8'))
     expect(rows).toHaveLength(1)
+  })
+})
+
+describe('checkWritable', () => {
+  let root: string
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), 'cct-test-'))
+  })
+  afterEach(async () => {
+    await rm(root, { recursive: true })
+  })
+
+  it('creates a missing Output folder and leaves no test file behind', async () => {
+    const output = join(root, 'CaipersCCT', 'Output')
+    await checkWritable(output)
+    expect(await readdir(output)).toEqual([])
+  })
+
+  it('accepts an Output folder that already holds sessions', async () => {
+    const output = join(root, 'Output')
+    await checkWritable(output)
+    await writeFile(join(output, 'existing.txt'), 'x')
+    await checkWritable(output)
+    expect(await readdir(output)).toEqual(['existing.txt'])
+  })
+
+  it('throws when the folder cannot be created', async () => {
+    // A file where the folder should be: the folder can't be created there
+    const blocked = join(root, 'Output')
+    await writeFile(blocked, 'not a folder')
+    await expect(checkWritable(blocked)).rejects.toThrow()
   })
 })

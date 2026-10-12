@@ -2,6 +2,7 @@
 // task info between the frontend renderer and backend main process
 import { RoundResponse, SessionData } from "./types"
 import type { ChatMessage } from "./types"
+import type { Options } from "./options"
 
 
 export const IPC = {
@@ -9,7 +10,8 @@ export const IPC = {
     roundFinish: 'session:round',
     sessionFinish: 'session:finish',
     chatReply: 'chat:reply',        // ask the llm for a response
-    messageSave: 'chat:save'      //saves chat responses to disk
+    messageSave: 'chat:save',     //saves chat responses to disk
+    optionsLoad: 'options:load'   // the Options/ folder, loaded and checked by main at startup
 } as const
 
 // What data is exported at the beginning of the game?
@@ -35,4 +37,5 @@ export type CctApi = {
     terminateSession: (sessionId: string) => Promise<void>
     chatReply: (request: ChatRequest) => Promise<ChatResult>
     saveMessage: (sessionId: string, message: ChatMessage) => Promise<void>
+    loadOptions: () => Promise<Options>
 }

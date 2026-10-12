@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 import type { AdviceCondition, ChatMessage, TrialConfig } from '../../../../shared/types'
 import type { RoundState } from '../cct/scoring'
-import type { Persona } from './chat.config'
-import { CHAT_CONFIG } from './chat.config'
+import type { ChatConfig, Options, Persona } from '../../../../shared/options'
 import { chatReducer, initialChatState } from './conversation'
 import { requestPartnerReply, type ReplyOutcome } from './reply'
 
@@ -14,6 +13,8 @@ export type UseChatOptions = {
   persona: Persona
   totalScoreBefore: number                      // total from earlier rounds
   saveMessage: (message: ChatMessage) => void   // from SessionContext; saves to disk
+  chat: ChatConfig                              // from Chat.config.json
+  prompts: Options['prompts']                   // the templates from Options/
 }
 
 // What does the chat send back to the task page
@@ -79,7 +80,7 @@ export function useChat(options: UseChatOptions,): UseChat {
       const history = [...messagesRef.current, participantMessage]  // add the user's most recent chat to the history
 
       // The partner "reads" the message for a moment before "is typing..." appears
-      const [readMin, readMax] = CHAT_CONFIG.readDelayMs
+      const [readMin, readMax] = options.chat.readDelayMs
       const readDelay = readMin + Math.random() * (readMax - readMin)
       setTimeout(() => {
         // Only for the latest message: a newer one starts its own read delay

@@ -1,9 +1,17 @@
 // Types will contain typescript logic for the CCT that will need to be shared across
 // electron processes. Things like TrialConfig, TrialResponse, SessionData, Participant info
 // Basically, anything that will be exported or needs to be shared with the LLM/chatbox/advice engine
-import { SessionStartPayload } from "../shared/ipc";
+import type { SessionStartPayload } from "./ipc";
+import type { Options } from "./options";
 
-export type SessionFile = SessionStartPayload & { appVersion: string}
+// What session.json holds: the start data, plus what main adds. options is the complete set
+// of options this session ran with, so later edits to Options/ can never make a session
+// ambiguous; optionsHash is a short fingerprint of it for grouping sessions in analysis
+export type SessionFile = SessionStartPayload & {
+    appVersion: string
+    options: Options
+    optionsHash: string
+}
 
 
 export type TrialConfig = {

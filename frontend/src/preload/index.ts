@@ -9,7 +9,8 @@ const api: CctApi = {
   startSession: (payload: SessionStartPayload) => ipcRenderer.invoke(IPC.sessionStart, payload),
   terminateSession: (sessionId: string) => ipcRenderer.invoke(IPC.sessionFinish, sessionId),
   chatReply: (request) => ipcRenderer.invoke(IPC.chatReply, request),
-  saveMessage: (sessionId, message) => ipcRenderer.invoke(IPC.messageSave, sessionId, message)
+  saveMessage: (sessionId, message) => ipcRenderer.invoke(IPC.messageSave, sessionId, message),
+  loadOptions: () => ipcRenderer.invoke(IPC.optionsLoad)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

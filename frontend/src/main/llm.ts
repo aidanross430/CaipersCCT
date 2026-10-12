@@ -4,11 +4,19 @@ import type { ChatRequest, ChatResult } from '../shared/ipc'
 // The preferred model for a response
 const MODEL = 'claude-opus-5-5'
 
+// The key from Options/api-key.txt, set once at startup. If it's null, the SDK falls back to
+// the ANTHROPIC_API_KEY environment variable
+let apiKey: string | null = null
+export function setApiKey(key: string | null): void {
+  apiKey = key
+  client = null // build the next client with the new key
+}
+
 let client: Anthropic | null = null
-// Created on first use, not at startup: the constructor throws if no API key is configured,
-// and the task must still run (on fallback replies) without one
+// Created on first use, not at startup: the constructor throws if no key is available at
+// all, and that should surface as a failed reply (shown and logged), not stop the app
 function getClient(): Anthropic {
-  client ??= new Anthropic({ timeout: 8_000, maxRetries: 1 }) // timeout is in ms
+  client ??= new Anthropic({ apiKey: apiKey ?? undefined, timeout: 8_000, maxRetries: 1 }) // timeout is in ms
   return client
 }
 

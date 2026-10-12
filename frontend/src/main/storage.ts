@@ -1,9 +1,19 @@
 // handles all the file storage things
 
 import { RoundResponse, SessionFile } from '../shared/types';
-import { mkdir, writeFile, appendFile, readFile } from 'fs/promises'
+import { mkdir, writeFile, appendFile, readFile, rm } from 'fs/promises'
 import { join } from 'path'
 import { ChatMessage } from '../shared/types';
+
+// Creates the data folder if needed, then writes and deletes a small test file. Throws if
+// either fails, so the app can refuse to start instead of failing during a participant's
+// session (e.g. when the folder was unzipped into C:\Program Files)
+export async function checkWritable(dataDir: string): Promise<void> {
+    await mkdir(dataDir, { recursive: true })
+    const probe = join(dataDir, `.write-check-${process.pid}`)
+    await writeFile(probe, 'ok')
+    await rm(probe)
+}
 
 export async function createSession(dataDir: string, data: SessionFile): Promise<{id, dir}> {
     // Sanitize the pid so that it works in a file name

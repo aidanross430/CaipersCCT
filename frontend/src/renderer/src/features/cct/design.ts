@@ -1,7 +1,7 @@
 // Holds the logic for the creating each trials design -
 
-import type { RoundConfig, TrialConfig } from '../../../../shared/types'
-import type { DesignConfig } from './design.config'
+import type { RoundConfig } from '../../../../shared/types'
+import type { DesignConfig } from '../../../../shared/options'
 
 // The parts of a round that come from the factorial design (gain x loss x number of loss cards)
 export type Condition = Pick<RoundConfig, 'gainAmount' | 'lossAmount' | 'numberLossCards'>

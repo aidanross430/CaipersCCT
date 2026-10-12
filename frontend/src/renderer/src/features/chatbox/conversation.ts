@@ -2,7 +2,7 @@
 
 import type { AdviceCondition, ChatMessage } from '../../../../shared/types'
 import type { RoundState } from '../cct/scoring'
-import { getAdvice } from './advice'
+import { getAdvice, type AdviceSettings } from './advice'
 import type { Advice } from '../../../../shared/types'
 
 // pendingReplies counts replies the partner still owes. A count rather than a true/false
@@ -63,9 +63,9 @@ function reduce(state: ChatState, action: ChatAction): ChatState {
 
 // The fallback reply system (placeholder for what is sent when no AI is available. Experiments that end up relying
 // on any fallbacks should probably be thrown out)
-export function partnerReply(state: RoundState, condition: AdviceCondition, sentAt:string): ChatMessage {
+export function partnerReply(state: RoundState, condition: AdviceCondition, sentAt:string, settings: AdviceSettings): ChatMessage {
     // For now, just send a fallback reply. We'll get the AI chatbot going later
-    const advice = getAdvice(state, condition)
+    const advice = getAdvice(state, condition, settings)
     return {
         sender: 'advice_giver',
         text: fallbackReply(advice),    // Where the LLM hook will go

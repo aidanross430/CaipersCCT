@@ -4,6 +4,7 @@ import type { Phase } from '../../shared/types'
 // Logic Imports
 import { Routes, HashRouter, Route, Navigate, useLocation } from 'react-router-dom'
 import { SessionProvider, useSession } from './state/SessionContext'
+import OptionsProvider from './state/OptionsProvider'
 
 // Page Imports
 import WelcomePage from './pages/WelcomePage'
@@ -33,6 +34,8 @@ function PhaseGuard({ children }: { children: ReactNode }): JSX.Element {
 
 export default function App(): JSX.Element {
   return (
+    // Options first: the session builds its rounds from them
+    <OptionsProvider>
     <SessionProvider>
       {/* Outside the router so it stays visible on every page */}
       <SaveErrorBanner />
@@ -46,5 +49,6 @@ export default function App(): JSX.Element {
         </PhaseGuard>
       </HashRouter>
     </SessionProvider>
+    </OptionsProvider>
   )
 }

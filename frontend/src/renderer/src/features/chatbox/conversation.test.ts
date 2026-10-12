@@ -116,7 +116,7 @@ describe('partnerReply', () => {
     let state = startRound(config, 0)
     state = flipCard(state, 0, 100)
     state = flipCard(state, 1, 200)
-    const reply = partnerReply(state, 'risky', '2026-10-10T12:00:00.000Z')
+    const reply = partnerReply(state, 'risky', '2026-10-10T12:00:00.000Z', { riskyFlips: 7, safeFlips: 7 })
 
     expect(reply.sender).toBe('advice_giver')
     expect(reply.source).toBe('fallback')

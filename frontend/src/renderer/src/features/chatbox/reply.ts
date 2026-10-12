@@ -1,8 +1,7 @@
 import type { AdviceCondition, ChatMessage, TrialConfig } from '../../../../shared/types'
 import type { ChatRequest, ChatResult } from '../../../../shared/ipc'
 import type { RoundState } from '../cct/scoring'
-import type { Persona } from './chat.config'
-import { CHAT_CONFIG } from './chat.config'
+import type { ChatConfig, Options, Persona } from '../../../../shared/options'
 import { getAdvice } from './advice'
 import { buildPrompt } from './prompt'
 
@@ -25,6 +24,8 @@ export type ReplyInput = {
   persona: Persona
   totalScoreBefore: number
   history: ChatMessage[]                      // includes the message just sent
+  chat: ChatConfig                            // from Chat.config.json
+  prompts: Options['prompts']                 // the templates from Options/
 }
 
 export async function requestPartnerReply(deps: ReplyDeps, input: ReplyInput): Promise<ReplyOutcome> {
@@ -34,14 +35,14 @@ export async function requestPartnerReply(deps: ReplyDeps, input: ReplyInput): P
   // At most two attempts: the second only if cards were flipped while waiting on the first
   let round = startRound
   for (let attempt = 0; attempt < 2; attempt++) {
-    const advice = getAdvice(round, input.adviceCondition)
+    const advice = getAdvice(round, input.adviceCondition, input.chat)
     const request = buildPrompt({ ...input, advice, round, totalScore: input.totalScoreBefore })
 
     let result: ChatResult
     try {
       ;[result] = await Promise.all([
         withTimeout(deps.chatReply(request), REPLY_TIMEOUT_MS),
-        attempt === 0 ? deps.sleep(typingDelay()) : Promise.resolve()   // only the first attempt "types"
+        attempt === 0 ? deps.sleep(typingDelay(input.chat.typingDelayMs)) : Promise.resolve()   // only the first attempt "types"
       ])
     } catch (err) {
       return { kind: 'failed', error: (err as Error).message }
@@ -73,8 +74,7 @@ export async function requestPartnerReply(deps: ReplyDeps, input: ReplyInput): P
   return { kind: 'failed', error: 'Cards kept changing while waiting for a reply' }
 }
 
-function typingDelay(): number {
-  const [min, max] = CHAT_CONFIG.typingDelayMs
+function typingDelay([min, max]: [number, number]): number {
   return min + Math.random() * (max - min)
 }
 

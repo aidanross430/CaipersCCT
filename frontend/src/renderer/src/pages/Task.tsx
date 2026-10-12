@@ -3,7 +3,7 @@ import type { RoundEndReason } from '../../../shared/types'
 import { useSession } from '../state/SessionContext'
 import ChatPanel from '../components/chat/ChatPanel'
 import { useChat } from '../features/chatbox/useChat'
-import { CHAT_CONFIG } from '../features/chatbox/chat.config'
+import { useOptions } from '../state/optionsContext'
 import {
   flipCard,
   startRound,
@@ -36,10 +36,13 @@ export default function Task(): JSX.Element | null {
 
   // The chat lives here (not in Round) so the conversation carries over between rounds.
   // Hooks have to run before the early returns below
-  const persona = CHAT_CONFIG.personas[session.trialConfig.chatDisplayCondition]
+  const { chat: chatConfig, prompts } = useOptions()
+  const persona = chatConfig.personas[session.trialConfig.chatDisplayCondition]
   const chat = useChat({
     round,
-    adviceCondition: CHAT_CONFIG.adviceCondition,
+    adviceCondition: chatConfig.adviceCondition,
+    chat: chatConfig,
+    prompts,
     displayCondition: session.trialConfig.chatDisplayCondition,
     persona,
     totalScoreBefore: trialScoreBefore,
@@ -110,7 +113,7 @@ export default function Task(): JSX.Element | null {
         sidePanel={
           <ChatPanel
             persona={persona}
-            greeting={CHAT_CONFIG.greeting}
+            greeting={chatConfig.greeting}
             messages={chat.messages}
             partnerTyping={chat.partnerTyping}
             error={chat.error}
