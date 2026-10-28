@@ -279,17 +279,15 @@ button {
   color: var(--body);
 }
 
-/* ---------- Play area + chat (from the mockup) ---------- */
-.play {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 32px;
-  align-items: start;
+/* Advised block: the chat sits between "Get ready" and the Start round button */
+.between-rounds .chat {
+  width: min(560px, 100%);
+  height: 480px;
+  margin: 12px 0;
+  text-align: left;
 }
-/* Solo block: no chat, so the cards get the full width */
-.play.no-side-panel {
-  grid-template-columns: minmax(0, 1fr);
-}
+
+/* ---------- Chat (from the mockup) ---------- */
 .chat {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -405,12 +403,9 @@ button {
   cursor: not-allowed;
 }
 
-/* Narrower windows: chat goes under the cards */
-@media (max-width: 1100px) {
-  .play {
-    grid-template-columns: 1fr;
-  }
-  .chat {
+/* Shorter windows: a smaller chat box so the Start round button stays in view */
+@media (max-height: 800px) {
+  .between-rounds .chat {
     height: 380px;
   }
 }

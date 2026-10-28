@@ -1,4 +1,4 @@
-import { useEffect, useState, type JSX, type ReactNode } from 'react'
+import { useMemo, useState, type JSX } from 'react'
 import type { RoundEndReason } from '../../../shared/types'
 import { useSession } from '../state/SessionContext'
 import ChatPanel from '../components/chat/ChatPanel'
@@ -12,14 +12,12 @@ import {
   type RoundState
 } from '../features/cct/scoring'
 
-// How long the "get ready" screen between rounds is shown
-const BETWEEN_ROUNDS_MS = 1500
-
 // The task page. It owns the state of the round being played, so anything else on the page
 // (the chat panel, later) can read the same round the card grid shows
 export default function Task(): JSX.Element | null {
   const { session, completeRound, finishSession, completeBlock, saveMessage } = useSession()
-  const [betweenRounds, setBetweenRounds] = useState(false)
+  // The advised block opens on the break screen too, so the chat is available before its first round
+  const [betweenRounds, setBetweenRounds] = useState(session.block === 'advised')
 
   // The current round is the first one without a response
   const roundNumber = session.roundResponses.length
@@ -28,18 +26,23 @@ export default function Task(): JSX.Element | null {
   const isLastRound = roundNumber === totalRounds - 1
   const trialScoreBefore = session.roundResponses.at(-1)?.trialScore ?? 0
 
-  // The round being played. The first round starts when the page first renders; every later
-  // round starts when the break screen before it ends (see the effect below)
+  // The round being played. The first solo round starts when the page first renders; every
+  // other round starts when the participant leaves the break screen before it
   const [round, setRound] = useState<RoundState | null>(() =>
-    config ? startRound(config, performance.now()) : null
+    config && !betweenRounds ? startRound(config, performance.now()) : null
   )
 
-  // The chat lives here (not in Round) so the conversation carries over between rounds.
-  // Hooks have to run before the early returns below
+  // On the break screen the chat is about the upcoming round, before any card is flipped, so
+  // it gets that round with no flips. While a round is played the chat is hidden and gets no
+  // round, so a reply still pending when the round starts is discarded instead of saved
+  const upcomingRound = useMemo(() => (config ? startRound(config, 0) : null), [config])
+
+  // The chat lives here (not on the break screen) so the conversation state carries over
+  // between rounds. Hooks have to run before the early returns below
   const { chat: chatConfig, prompts } = useOptions()
   const persona = chatConfig.personas[session.trialConfig.chatDisplayCondition]
   const chat = useChat({
-    round,
+    round: betweenRounds ? upcomingRound : null,
     adviceCondition: chatConfig.adviceCondition,
     chat: chatConfig,
     prompts,
@@ -49,27 +52,39 @@ export default function Task(): JSX.Element | null {
     saveMessage
   })
 
-  // End the break after BETWEEN_ROUNDS_MS and start the next round. Starting it here, rather
-  // than when the previous round ended, keeps the break out of the first flip's timing.
-  // The cleanup cancels the timer if the page unmounts first
-  useEffect(() => {
-    if (!betweenRounds || !config) return
-    const timer = setTimeout(() => {
-      setRound(startRound(config, performance.now()))
-      setBetweenRounds(false)
-    }, BETWEEN_ROUNDS_MS)
-    return () => clearTimeout(timer)
-  }, [betweenRounds, config])
-
   // Only happens if there are no rounds left; PhaseGuard moves on once the session finishes
   if (!config) return null
 
   // roundResponses already includes the round that just ended, so roundNumber is the next round
   if (betweenRounds) {
+    // The round's clock starts on this click, which keeps the break out of the first flip's timing
+    const handleStartRound = (): void => {
+      setRound(startRound(config, performance.now()))
+      setBetweenRounds(false)
+    }
+    // The chat is only shown in the advised block
+    const showChat = session.block === 'advised'
     return (
-      <main className="trial between-rounds" aria-live="polite">
-        <p className="total-score">Total score: {trialScoreBefore}</p>
-        <p className="get-ready">Get ready for round {roundNumber + 1}...</p>
+      <main className="trial between-rounds">
+        <p className="total-score" aria-live="polite">
+          Total score: {trialScoreBefore}
+        </p>
+        <p className="get-ready">Get ready for round {roundNumber + 1}</p>
+        {showChat && (
+          <ChatPanel
+            persona={persona}
+            greeting={chatConfig.greeting}
+            messages={chat.messages}
+            partnerTyping={chat.partnerTyping}
+            error={chat.error}
+            disabled={false}
+            onSend={chat.send}
+          />
+        )}
+        {/* In the advised block focus is left for the chat box, so Enter can't skip the chat */}
+        <button className="btn-primary" type="button" onClick={handleStartRound} autoFocus={!showChat}>
+          Start round {roundNumber + 1}
+        </button>
       </main>
     )
   }
@@ -115,20 +130,6 @@ export default function Task(): JSX.Element | null {
         onFlip={handleFlip}
         onStop={handleStop}
         onNext={handleNext}
-        // The chat is only shown in the advised block
-        sidePanel={
-          session.block === 'advised' && (
-            <ChatPanel
-              persona={persona}
-              greeting={chatConfig.greeting}
-              messages={chat.messages}
-              partnerTyping={chat.partnerTyping}
-              error={chat.error}
-              disabled={round.roundEnded}
-              onSend={chat.send}
-            />
-          )
-        }
       />
     </main>
   )
@@ -140,7 +141,6 @@ type RoundProps = {
   onFlip: (position: number, clickedAt: number) => void
   onStop: () => void
   onNext: () => void
-  sidePanel: ReactNode // shown to the right of the cards (the chat); false/null for none
 }
 
 const endMessages: Record<RoundEndReason, string> = {
@@ -151,7 +151,7 @@ const endMessages: Record<RoundEndReason, string> = {
 
 // Displays one round: the info panel, the card grid and the stop/next buttons. It holds no
 // state of its own; everything comes from Task through props
-function Round({ round, isLastRound, onFlip, onStop, onNext, sidePanel }: RoundProps): JSX.Element {
+function Round({ round, isLastRound, onFlip, onStop, onNext }: RoundProps): JSX.Element {
   const { config } = round
 
   // Look up each card's flip (if any) by grid position
@@ -172,50 +172,43 @@ function Round({ round, isLastRound, onFlip, onStop, onNext, sidePanel }: RoundP
         Round score: {round.roundScore}
       </p>
 
-      {/* Two columns, as in the mockup: cards and buttons on the left, side panel on the right */}
-      <div className={sidePanel ? 'play' : 'play no-side-panel'}>
-        <div>
-          <div className="grid" aria-label="Cards">
-            {Array.from({ length: config.totalCards }, (_, position) => {
-              const flip = flipsByPosition.get(position)
-              return (
-                <button
-                  key={position}
-                  type="button"
-                  className={flip ? `card ${flip.outcome}` : 'card'}
-                  disabled={flip !== undefined || round.roundEnded}
-                  onClick={(e) => onFlip(position, e.timeStamp)}
-                  aria-label={flip ? `${flip.outcome} card` : `Card ${position + 1}, face down`}
-                >
-                  {flip === undefined
-                    ? '?'
-                    : flip.outcome === 'gain'
-                      ? `+${config.gainAmount}`
-                      : `−${config.lossAmount}`}
-                </button>
-              )
-            })}
-          </div>
+      <div className="grid" aria-label="Cards">
+        {Array.from({ length: config.totalCards }, (_, position) => {
+          const flip = flipsByPosition.get(position)
+          return (
+            <button
+              key={position}
+              type="button"
+              className={flip ? `card ${flip.outcome}` : 'card'}
+              disabled={flip !== undefined || round.roundEnded}
+              onClick={(e) => onFlip(position, e.timeStamp)}
+              aria-label={flip ? `${flip.outcome} card` : `Card ${position + 1}, face down`}
+            >
+              {flip === undefined
+                ? '?'
+                : flip.outcome === 'gain'
+                  ? `+${config.gainAmount}`
+                  : `−${config.lossAmount}`}
+            </button>
+          )
+        })}
+      </div>
 
-          <div className="submit-row">
-            {round.roundEnded ? (
-              <>
-                <button className="btn-primary" type="button" onClick={onNext} autoFocus>
-                  {isLastRound ? 'Finish' : 'Next round'}
-                </button>
-                {round.endReason && (
-                  <p className="round-message">{endMessages[round.endReason]}</p>
-                )}
-              </>
-            ) : (
-              <button className="btn-primary" type="button" onClick={onStop}>
-                Stop and keep points
-              </button>
+      <div className="submit-row">
+        {round.roundEnded ? (
+          <>
+            <button className="btn-primary" type="button" onClick={onNext} autoFocus>
+              {isLastRound ? 'Finish' : 'Next round'}
+            </button>
+            {round.endReason && (
+              <p className="round-message">{endMessages[round.endReason]}</p>
             )}
-          </div>
-        </div>
-
-        {sidePanel}
+          </>
+        ) : (
+          <button className="btn-primary" type="button" onClick={onStop}>
+            Stop and keep points
+          </button>
+        )}
       </div>
     </>
   )
