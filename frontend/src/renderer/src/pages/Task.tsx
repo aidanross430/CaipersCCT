@@ -85,7 +85,7 @@ export default function Task(): JSX.Element | null {
     const nextConfig = session.roundConfigs[roundNumber + 1]
     const isLastRoundOfBlock = nextConfig !== undefined && nextConfig.blockIndex !== config.blockIndex
 
-    completeRound(toRoundResponse(finished, trialScoreBefore))
+    completeRound(toRoundResponse(finished, trialScoreBefore, session.block))
     if (isLastRound) finishSession()
     else if (isLastRoundOfBlock) completeBlock()
     else setBetweenRounds(true)

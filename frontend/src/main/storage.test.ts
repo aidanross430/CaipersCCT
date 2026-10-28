@@ -51,6 +51,7 @@ const session: SessionFile = {
 
 const round: RoundResponse = {
   roundIndex: 0,
+  block: 'solo',
   flips: [],
   endReason: 'stopped',
   gainCardsFlipped: 0,

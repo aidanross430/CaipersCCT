@@ -2,7 +2,7 @@
 // to be answered is when scoring happens. For now, following Inquisit's
 // CCT rules
 
-import { CardFlip, RoundConfig, RoundEndReason, RoundResponse } from '../../../../shared/types';
+import { Block, CardFlip, RoundConfig, RoundEndReason, RoundResponse } from '../../../../shared/types';
 
 export type RoundState = {
     config: RoundConfig
@@ -94,7 +94,7 @@ export function stopRound(state: RoundState): RoundState {
 }
 
 // Converts a completed round state into a RoundResponse.
-export function toRoundResponse(state: RoundState, trialScoreBefore: number): RoundResponse {
+export function toRoundResponse(state: RoundState, trialScoreBefore: number, block: Block): RoundResponse {
     // Error if the round isn't finished
     if (!state.roundEnded || state.endReason === null) {
         throw new Error(`Round ${state.config.roundIndex} is not over yet.`)
@@ -107,6 +107,7 @@ export function toRoundResponse(state: RoundState, trialScoreBefore: number): Ro
     // return the round response
     return {
         roundIndex: state.config.roundIndex,
+        block,
         flips: state.flips,
         endReason: state.endReason,
         gainCardsFlipped,

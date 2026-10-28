@@ -49,12 +49,16 @@ export type RoundEndReason = 'stopped' | 'loss' | 'allGainsRevealed'
 // in the trial
 export type RoundResponse = {
     roundIndex: number         // Which Round was this?
+    block: Block               // Was this round played in the solo or advised block?
     flips: CardFlip[]          // The set of flip data
     endReason: RoundEndReason  // Why did the round end?
     gainCardsFlipped: number   // How many gain cards were flipped?
     trialScore: number         // What is the trials score at the end of this round?
     roundScore: number          // The score gained or lost during this specific round
 }
+
+// For the within-subject design: the no advice block or the advice block
+export type Block = 'solo' | 'advised'
 
 // Which phase of the trial is the user on
 export type Phase = 'welcome' | 'task' | 'complete' | 'interlude'  //Will have more phases: ex. practice, complete, setup
@@ -68,7 +72,7 @@ export type SessionData = {
     roundResponses: RoundResponse[]     // The set of outcomes for each round
     localDate: string                        // Timestamp data for session (was useful for PID fixing in the past)
     sessionStart: string
-    block: 'solo' | 'advised'           // For the within-subject design, is this the no advice or advice trial block?
+    block: Block                        // For the within-subject design, is this the no advice or advice trial block?
 }
 
 // Types for the advice engine
