@@ -14,6 +14,8 @@ type SessionContextValue = {
     startSession: (participantId: string) => void
     completeRound: (response: RoundResponse) => void
     finishSession: () => void
+    completeBlock: () => void
+    completeInterlude: () => void
     saveMessage: (message: ChatMessage) => void
     saveError: string | null    // message from the last failed save, or null if none failed
 }
@@ -69,6 +71,12 @@ export function SessionProvider({ children }: {children: ReactNode}) {
         }
         window.api.terminateSession(id).catch((err) => setSaveError(err.message))
     }
+    const completeInterlude = (): void => {
+        dispatch({ type: 'INTERLUDE_COMPLETE' })
+    }
+    const completeBlock = (): void => {
+        dispatch({ type: 'BLOCK_COMPLETE' })
+    }
     const saveMessage = (message: ChatMessage): void => {
         const id = sessionIdRef.current
         if (!id) return setSaveError('No active session, message not saved')
@@ -76,7 +84,7 @@ export function SessionProvider({ children }: {children: ReactNode}) {
     }
 
     return (
-        <SessionContext.Provider value={{session, startSession, completeRound, finishSession, saveMessage, saveError}}>
+        <SessionContext.Provider value={{session, startSession, completeRound, finishSession, completeBlock, completeInterlude, saveMessage, saveError}}>
             {children}
         </SessionContext.Provider>
     )

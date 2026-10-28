@@ -97,7 +97,6 @@ async function readJson(path: string): Promise<{ value?: unknown; error?: string
 
 const DESIGN_KEYS = [
   'totalCards',
-  'numRounds',
   'gainAmounts',
   'lossAmounts',
   'lossCardCounts',
@@ -113,7 +112,6 @@ export function validateDesignConfig(value: unknown): string[] {
     value
 
   if (!isInt(totalCards) || totalCards < 2) problems.push(`totalCards must be a whole number of at least 2 (got ${show(totalCards)})`)
-  if (!isInt(numRounds) || numRounds < 1) problems.push(`numRounds must be a whole number of at least 1 (got ${show(numRounds)})`)
   problems.push(...positiveList('gainAmounts', gainAmounts))
   problems.push(...positiveList('lossAmounts', lossAmounts))
 
@@ -127,24 +125,6 @@ export function validateDesignConfig(value: unknown): string[] {
 
   if (!isInt(repititionsPerCondition) || repititionsPerCondition < 1) {
     problems.push(`repititionsPerCondition must be a whole number of at least 1 (got ${show(repititionsPerCondition)})`)
-  }
-
-  // numRounds must match the design, or the round count and the conditions disagree
-  if (
-    problems.length === 0 &&
-    isInt(numRounds) &&
-    Array.isArray(gainAmounts) &&
-    Array.isArray(lossAmounts) &&
-    Array.isArray(lossCardCounts) &&
-    isInt(repititionsPerCondition)
-  ) {
-    const product = gainAmounts.length * lossAmounts.length * lossCardCounts.length * repititionsPerCondition
-    if (numRounds !== product) {
-      problems.push(
-        `numRounds is ${numRounds}, but gainAmounts × lossAmounts × lossCardCounts × repititionsPerCondition = ` +
-          `${gainAmounts.length} × ${lossAmounts.length} × ${lossCardCounts.length} × ${repititionsPerCondition} = ${product}`
-      )
-    }
   }
 
   if (!isObject(rigging)) {

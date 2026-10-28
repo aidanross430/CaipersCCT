@@ -214,7 +214,6 @@ describe('buildRoundConfig', () => {
     const rounds = buildRoundConfigs(TEST_DESIGN, 1)
 
     expect(Array.isArray(rounds)).toBe(true)
-    expect(rounds.length).toEqual(TEST_DESIGN.numRounds)
 
     // every round has every RoundConfig field, with the right type.
     // expect.any(Number) matches any number, so this checks shape, not specific values

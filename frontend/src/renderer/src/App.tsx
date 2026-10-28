@@ -11,13 +11,15 @@ import WelcomePage from './pages/WelcomePage'
 import Task from './pages/Task'
 import CompletePage from './pages/CompletePage'
 import SaveErrorBanner from './components/SaveErrorBanner'
+import InterludePage from './pages/Interlude'
 
 // phaseToPath converts the SessionProvider's current phase into url paths.
 // Typed as Record<Phase, string> so adding a phase without a path is a compile error
 const phaseToPath: Record<Phase, string> = {
   welcome: '/',
   task: '/task',
-  complete: '/complete'
+  complete: '/complete',
+  interlude: '/interlude'
 }
 
 // The PhaseGuard prevents a participant from forcing themselves out of the current
@@ -45,6 +47,7 @@ export default function App(): JSX.Element {
             <Route path="/" element={<WelcomePage />} />
             <Route path="/task" element={<Task />} />
             <Route path="/complete" element={<CompletePage />} />
+            <Route path="/interlude" element={<InterludePage />} />
           </Routes>
         </PhaseGuard>
       </HashRouter>

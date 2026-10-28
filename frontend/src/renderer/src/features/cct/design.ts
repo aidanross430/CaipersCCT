@@ -3,6 +3,9 @@
 import type { RoundConfig } from '../../../../shared/types'
 import type { DesignConfig } from '../../../../shared/options'
 
+// two blocks, one where the user plays solo and one where they are given advice between rounds
+export const NUM_BLOCKS = 2
+
 // The parts of a round that come from the factorial design (gain x loss x number of loss cards)
 export type Condition = Pick<RoundConfig, 'gainAmount' | 'lossAmount' | 'numberLossCards'>
 
@@ -93,24 +96,30 @@ export function assignRigging(rounds: RoundConfig[], config: DesignConfig, rng: 
 // }
 
 export function buildRoundConfigs(config: DesignConfig, seed: number): RoundConfig[] {
-    // TODO: Validate that the config makes sense
-
     // Create an rng
     const rng = createRng(seed)
     // Build condition array and shuffle it so each condition appears randomly
     const conditions = shuffle(buildConditions(config), rng)
 
     // Build the conditon array that is indexed with loss cards placed.
-    const rounds = conditions.map((condition, i) => ({
-        roundIndex: i,
+    // Each block gets its own array
+    const blocks = Array.from({ length: NUM_BLOCKS }, (_, blockIndex) => {
+      const rounds = shuffle(conditions, rng).map((condition, i) => ({
+        roundIndex: 0, // temp value before blocks are joined in this functions return
+        blockIndex,
         isPractice: false,
         ...condition,
         totalCards: config.totalCards,
         lossPositions: placeLossCards(condition.numberLossCards, config.totalCards, rng),
         rigged: false,
         lossOnFlipNum: null
-    }))
+      }))
+        // Assign the rounds that are supposed to be rigged. Return the array
+      return assignRigging(rounds, config, rng)
+    })
 
-    // Assign the rounds that are supposed to be rigged. Return the array
-    return assignRigging(rounds, config, rng)
+    return blocks.flat().map((round, i) => ({
+      ...round,
+      roundIndex: i
+    }))
 }

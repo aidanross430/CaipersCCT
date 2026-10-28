@@ -18,7 +18,7 @@ const BETWEEN_ROUNDS_MS = 1500
 // The task page. It owns the state of the round being played, so anything else on the page
 // (the chat panel, later) can read the same round the card grid shows
 export default function Task(): JSX.Element | null {
-  const { session, completeRound, finishSession, saveMessage } = useSession()
+  const { session, completeRound, finishSession, completeBlock, saveMessage } = useSession()
   const [betweenRounds, setBetweenRounds] = useState(false)
 
   // The current round is the first one without a response
@@ -81,8 +81,13 @@ export default function Task(): JSX.Element | null {
 
   // Record the finished round straight away; the break only delays when the next round appears
   const handleRoundDone = (finished: RoundState): void => {
+    // Check if this block is over by checking if the next round exists and is part of a different block
+    const nextConfig = session.roundConfigs[roundNumber + 1]
+    const isLastRoundOfBlock = nextConfig !== undefined && nextConfig.blockIndex !== config.blockIndex
+
     completeRound(toRoundResponse(finished, trialScoreBefore))
     if (isLastRound) finishSession()
+    else if (isLastRoundOfBlock) completeBlock()
     else setBetweenRounds(true)
   }
 
@@ -110,16 +115,19 @@ export default function Task(): JSX.Element | null {
         onFlip={handleFlip}
         onStop={handleStop}
         onNext={handleNext}
+        // The chat is only shown in the advised block
         sidePanel={
-          <ChatPanel
-            persona={persona}
-            greeting={chatConfig.greeting}
-            messages={chat.messages}
-            partnerTyping={chat.partnerTyping}
-            error={chat.error}
-            disabled={round.roundEnded}
-            onSend={chat.send}
-          />
+          session.block === 'advised' && (
+            <ChatPanel
+              persona={persona}
+              greeting={chatConfig.greeting}
+              messages={chat.messages}
+              partnerTyping={chat.partnerTyping}
+              error={chat.error}
+              disabled={round.roundEnded}
+              onSend={chat.send}
+            />
+          )
         }
       />
     </main>
@@ -132,7 +140,7 @@ type RoundProps = {
   onFlip: (position: number, clickedAt: number) => void
   onStop: () => void
   onNext: () => void
-  sidePanel: ReactNode // shown to the right of the cards (the chat)
+  sidePanel: ReactNode // shown to the right of the cards (the chat); false/null for none
 }
 
 const endMessages: Record<RoundEndReason, string> = {
@@ -165,7 +173,7 @@ function Round({ round, isLastRound, onFlip, onStop, onNext, sidePanel }: RoundP
       </p>
 
       {/* Two columns, as in the mockup: cards and buttons on the left, side panel on the right */}
-      <div className="play">
+      <div className={sidePanel ? 'play' : 'play no-side-panel'}>
         <div>
           <div className="grid" aria-label="Cards">
             {Array.from({ length: config.totalCards }, (_, position) => {

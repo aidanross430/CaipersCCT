@@ -28,7 +28,6 @@ const session: SessionFile = {
   options: {
     design: {
       totalCards: 32,
-      numRounds: 1,
       gainAmounts: [10],
       lossAmounts: [250],
       lossCardCounts: [1],

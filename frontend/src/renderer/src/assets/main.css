@@ -286,6 +286,10 @@ button {
   gap: 32px;
   align-items: start;
 }
+/* Solo block: no chat, so the cards get the full width */
+.play.no-side-panel {
+  grid-template-columns: minmax(0, 1fr);
+}
 .chat {
   background: var(--surface);
   border: 1px solid var(--line);

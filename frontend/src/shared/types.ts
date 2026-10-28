@@ -22,6 +22,7 @@ export type TrialConfig = {
 // The settings for each round, determining number of loss cards and each card's point worth
 export type RoundConfig = {
     roundIndex: number              // what number round are we on?
+    blockIndex: number              // Which block are we on?
     isPractice: boolean             // will not add round score to final score.
     gainAmount: number              // how many points are each gain card worth?
     lossAmount: number              // how many points are each loss card worth?
@@ -56,7 +57,7 @@ export type RoundResponse = {
 }
 
 // Which phase of the trial is the user on
-export type Phase = 'welcome' | 'task' | 'complete'  //Will have more phases: ex. practice, complete, setup
+export type Phase = 'welcome' | 'task' | 'complete' | 'interlude'  //Will have more phases: ex. practice, complete, setup
 
 // The user's sessionData
 export type SessionData = {
@@ -67,6 +68,7 @@ export type SessionData = {
     roundResponses: RoundResponse[]     // The set of outcomes for each round
     localDate: string                        // Timestamp data for session (was useful for PID fixing in the past)
     sessionStart: string
+    block: 'solo' | 'advised'           // For the within-subject design, is this the no advice or advice trial block?
 }
 
 // Types for the advice engine

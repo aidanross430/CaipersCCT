@@ -85,12 +85,6 @@ describe('validateDesignConfig', () => {
     expect(validateDesignConfig(valid)).toEqual([])
   })
 
-  it('rejects a round count that does not match the design', () => {
-    const [problem] = validateDesignConfig({ ...valid, numRounds: 27 })
-    expect(problem).toContain('numRounds is 27')
-    expect(problem).toContain('= 8')
-  })
-
   it('rejects repeated values, which would silently run a condition twice', () => {
     expect(validateDesignConfig({ ...valid, gainAmounts: [10, 10] })).toContainEqual(
       expect.stringContaining('gainAmounts lists the same value more than once')
