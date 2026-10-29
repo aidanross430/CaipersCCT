@@ -1,4 +1,4 @@
-import { useMemo, useState, type JSX } from 'react'
+import { useState, type JSX } from 'react'
 import type { RoundEndReason } from '../../../shared/types'
 import { useSession } from '../state/SessionContext'
 import ChatPanel from '../components/chat/ChatPanel'
@@ -32,17 +32,15 @@ export default function Task(): JSX.Element | null {
     config && !betweenRounds ? startRound(config, performance.now()) : null
   )
 
-  // On the break screen the chat is about the upcoming round, before any card is flipped, so
-  // it gets that round with no flips. While a round is played the chat is hidden and gets no
-  // round, so a reply still pending when the round starts is discarded instead of saved
-  const upcomingRound = useMemo(() => (config ? startRound(config, 0) : null), [config])
-
   // The chat lives here (not on the break screen) so the conversation state carries over
   // between rounds. Hooks have to run before the early returns below
   const { chat: chatConfig, prompts } = useOptions()
   const persona = chatConfig.personas[session.trialConfig.chatDisplayCondition]
   const chat = useChat({
-    round: betweenRounds ? upcomingRound : null,
+    // On the break screen the chat is about the upcoming round. While a round is played the
+    // chat is hidden and gets no round, so a reply still pending when the round starts is
+    // discarded instead of saved
+    upcomingRound: betweenRounds ? (config ?? null) : null,
     adviceCondition: chatConfig.adviceCondition,
     chat: chatConfig,
     prompts,

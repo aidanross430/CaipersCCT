@@ -32,8 +32,6 @@ export const PROMPT_PLACEHOLDERS = [
   'lossAmount',
   'numberLossCards',
   'totalCards',
-  'flipsSoFar',
-  'roundScore',
   'totalScore',
   'suggestedTotalFlips',
   'adviceText'

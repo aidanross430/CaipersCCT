@@ -111,15 +111,15 @@ function buildFlipsCsv(session: SessionFile, rounds: RoundResponse[]): string {
 // Builds out a csv file with one row per chat message, from either side, in the order sent
 function buildMessagesCsv(session: SessionFile, messages: ChatMessage[]): string {
     const header = [
-        'participantId', 'roundIndex', 'sentAt', 'sender', 'flipsSoFar', 'text',
-        'adviceCondition', 'suggestedTotalFlips', 'adviceAction', 'source', 'error'
+        'participantId', 'roundIndex', 'sentAt', 'sender', 'text',
+        'adviceCondition', 'suggestedTotalFlips', 'source', 'error'
     ]
 
     // Advice columns and source are only filled for partner messages, and error only for
     // system records of a failed reply; other rows leave them empty
     const rows = messages.map((m) => [
-        session.participantId, m.roundIndex, m.sentAt, m.sender, m.flipsSoFar, m.text,
-        m.advice?.condition, m.advice?.suggestedTotalFlips, m.advice?.action, m.source, m.error
+        session.participantId, m.roundIndex, m.sentAt, m.sender, m.text,
+        m.advice?.condition, m.advice?.suggestedTotalFlips, m.source, m.error
     ])
 
     return toCsv(header, rows)

@@ -1,9 +1,6 @@
 // Holds the reducer for the chatbox
 
-import type { AdviceCondition, ChatMessage } from '../../../../shared/types'
-import type { RoundState } from '../cct/scoring'
-import { getAdvice, type AdviceSettings } from './advice'
-import type { Advice } from '../../../../shared/types'
+import type { ChatMessage } from '../../../../shared/types'
 
 // pendingReplies counts replies the partner still owes. A count rather than a true/false
 // flag, so two quick messages in a row keep "typing..." showing until both are answered
@@ -21,7 +18,7 @@ export type ChatState = {
 export type ChatAction =
     | { type: 'SEND'; message: ChatMessage }    // participant sends a message
     | { type: 'REPLY'; message: ChatMessage }   // partner responds to the message
-    | { type: 'CANCEL_REPLY' }                  // stop messages once the round ends
+    | { type: 'CANCEL_REPLY' }                  // drop a reply that's out of date or arrived after the break
     | { type: 'REPLY_FAILED'; error: string }   // If the LLM fails to send a response
     | { type: 'TYPING_START' }                  // the read delay is over: show "is typing..."
 
@@ -59,27 +56,4 @@ function reduce(state: ChatState, action: ChatAction): ChatState {
             // ignored if every reply already arrived before the read delay ended
             return state.pendingReplies > 0 ? { ...state, typingVisible: true } : state
     }
-}
-
-// The fallback reply system (placeholder for what is sent when no AI is available. Experiments that end up relying
-// on any fallbacks should probably be thrown out)
-export function partnerReply(state: RoundState, condition: AdviceCondition, sentAt:string, settings: AdviceSettings): ChatMessage {
-    // For now, just send a fallback reply. We'll get the AI chatbot going later
-    const advice = getAdvice(state, condition, settings)
-    return {
-        sender: 'advice_giver',
-        text: fallbackReply(advice),    // Where the LLM hook will go
-        sentAt,
-        roundIndex: state.config.roundIndex,
-        flipsSoFar: advice.flipsSoFar,
-        advice,
-        source: 'fallback'
-    }
-}
-
-function fallbackReply(advice: Advice): string {
-  const left = advice.suggestedTotalFlips - advice.flipsSoFar
-  if (advice.action === 'stop') return "i'd stop here and keep your points"
-  if (advice.flipsSoFar === 0) return `i'd go for about ${advice.suggestedTotalFlips} cards this round`
-  return `i'd keep going, maybe ${left} more`
 }

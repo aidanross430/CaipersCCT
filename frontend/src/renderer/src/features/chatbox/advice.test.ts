@@ -1,42 +1,35 @@
 import { describe, it, expect } from 'vitest'
 import type { RoundConfig } from '../../../../shared/types'
 import { getAdvice } from './advice'
-import { startRound, flipCard, type RoundState } from '../cct/scoring'
 
 // Fixed settings, so these tests don't change when someone edits Chat.config.json
 const SETTINGS = { riskyFlips: 7, safeFlips: 7 }
 
 const config: RoundConfig = {
   roundIndex: 0,
+  blockIndex: 1,
   isPractice: false,
   gainAmount: 20,
   lossAmount: 250,
   numberLossCards: 1,
   totalCards: 32,
-  lossPositions: [31], // the last card, so flipping 0..30 is always safe in these tests
+  lossPositions: [31],
   rigged: false,
   lossOnFlipNum: null
 }
 
-function roundWithFlips(n: number): RoundState {
-  let state = startRound(config, 0)
-  for (let i = 0; i < n; i++) state = flipCard(state, i, i + 1)
-  return state
-}
-
 describe('getAdvice (risky)', () => {
-  it('says to flip before reaching the suggested total', () => {
-    expect(getAdvice(roundWithFlips(0), 'risky', SETTINGS).action).toBe('flip')
+  it('suggests the optimal number of flips plus riskyFlips', () => {
+    // optimal for 1 loss card in 32 is ceil(32 / 2) = 16
+    expect(getAdvice(config, 'risky', SETTINGS).suggestedTotalFlips).toBe(16 + 7)
   })
 
-  it('still says to flip at and past the suggested total', () => {
-    const total = getAdvice(roundWithFlips(0), 'risky', SETTINGS).suggestedTotalFlips
-    expect(getAdvice(roundWithFlips(total), 'risky', SETTINGS).action).toBe('flip')
-    expect(getAdvice(roundWithFlips(total + 2), 'risky', SETTINGS).action).toBe('flip')
+  it('never suggests turning over every gain card', () => {
+    const advice = getAdvice(config, 'risky', { ...SETTINGS, riskyFlips: 100 })
+    expect(advice.suggestedTotalFlips).toBe(config.totalCards - config.numberLossCards - 1)
   })
 
-  it('keeps the same suggested total throughout the round', () => {
-    const total = getAdvice(roundWithFlips(0), 'risky', SETTINGS).suggestedTotalFlips
-    expect(getAdvice(roundWithFlips(5), 'risky', SETTINGS).suggestedTotalFlips).toBe(total)
+  it('records the advice condition', () => {
+    expect(getAdvice(config, 'risky', SETTINGS).condition).toBe('risky')
   })
 })

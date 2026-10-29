@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useReducer, useRef } from 'react'
-import type { AdviceCondition, ChatMessage, TrialConfig } from '../../../../shared/types'
-import type { RoundState } from '../cct/scoring'
+import type { AdviceCondition, ChatMessage, RoundConfig, TrialConfig } from '../../../../shared/types'
 import type { ChatConfig, Options, Persona } from '../../../../shared/options'
 import { chatReducer, initialChatState } from './conversation'
 import { requestPartnerReply, type ReplyOutcome } from './reply'
 
 // What does the chat need from the task page?
 export type UseChatOptions = {
-  round: RoundState | null
+  upcomingRound: RoundConfig | null             // the round the current break is before; null while a round is played
   adviceCondition: AdviceCondition
   displayCondition: TrialConfig['chatDisplayCondition']
   persona: Persona
@@ -26,8 +25,8 @@ export type UseChat = {
 }
 
 // Connects the pure chat logic (conversation.ts, advice.ts) to React: keeps the message
-// list, waits a "typing" delay before each reply, and builds the reply from the round as it
-// is when the reply appears, not when the message was sent.
+// list and waits a "typing" delay before each reply. The chat only happens on the break
+// between rounds, so a reply that arrives after that break has ended is dropped.
 // Call it from a component that stays mounted for the whole task (Task), so the
 // conversation carries over between rounds.
 export function useChat(options: UseChatOptions,): UseChat {
@@ -54,19 +53,17 @@ export function useChat(options: UseChatOptions,): UseChat {
 
   const send = useCallback(
     (text: string): void => {
-      // Get the prompt text and round's live data
       const trimmed = text.trim()
       const options = optionsRef.current
-      const round = options.round
+      const upcomingRound = options.upcomingRound
 
       // Format the text and message data struct sent to the llm
-      if (!trimmed || !round || round.roundEnded) return
+      if (!trimmed || !upcomingRound) return
       const participantMessage: ChatMessage = {
         sender: 'participant',
         text: trimmed,
         sentAt: new Date().toISOString(),
-        roundIndex: round.config.roundIndex,
-        flipsSoFar: round.flips.length
+        roundIndex: upcomingRound.roundIndex
       }
 
       // send that message
@@ -90,12 +87,11 @@ export function useChat(options: UseChatOptions,): UseChat {
       void requestPartnerReply(
         {
           chatReply: window.api.chatReply,
-          getRound: () => optionsRef.current.round,
           // requestPartnerReply waits this out as the minimum typing time. Adding the read
           // delay means a fast reply still shows "is typing..." for a moment first
           sleep: (ms) => new Promise((resolve) => setTimeout(resolve, readDelay + ms))
         },
-        { ...options, history}
+        { ...options, upcomingRound, history }
       )
         // requestPartnerReply turns API errors into a 'failed' outcome itself, but anything
         // thrown outside that (e.g. a template typo in buildPrompt) would otherwise leave
@@ -103,7 +99,10 @@ export function useChat(options: UseChatOptions,): UseChat {
         .catch((err: unknown): ReplyOutcome => ({ kind: 'failed', error: String(err) }))
         .then((outcome) => {
           if (!mounted.current) return  // the user went past the page
-          if (requestId !== latestRequest.current || outcome.kind === 'discard') {
+          // A newer message is waiting on its own reply, or the participant started the round
+          // before this reply arrived: they never see it, so it isn't shown or saved
+          const breakEnded = optionsRef.current.upcomingRound?.roundIndex !== participantMessage.roundIndex
+          if (requestId !== latestRequest.current || breakEnded) {
             dispatch({ type: 'CANCEL_REPLY' })
             return
           }
@@ -117,7 +116,6 @@ export function useChat(options: UseChatOptions,): UseChat {
               text: '',
               sentAt: new Date().toISOString(),
               roundIndex: participantMessage.roundIndex,
-              flipsSoFar: optionsRef.current.round?.flips.length ?? participantMessage.flipsSoFar,
               error: outcome.error
             })
             return
@@ -127,14 +125,14 @@ export function useChat(options: UseChatOptions,): UseChat {
         })
     }, [])
 
-  // The chat shows only the current round: it starts empty each round. Every message is
+  // The chat shows only the current break: it starts empty each time. Every message is
   // still kept in state and saved to disk; this only changes what's displayed
-  const currentRound = options.round?.config.roundIndex
+  const currentRound = options.upcomingRound?.roundIndex
   const sentThisRound = state.lastSendRound === currentRound
   return {
     messages: state.messages.filter((m) => m.roundIndex === currentRound),
-    // A reply still pending from the previous round is discarded when it arrives, so don't
-    // show "..." or that round's error in the new round's empty chat
+    // A reply still pending from the previous break is discarded when it arrives, so don't
+    // show "..." or that break's error in the new break's empty chat
     partnerTyping: state.pendingReplies > 0 && state.typingVisible && sentThisRound,
     error: sentThisRound ? state.error : null,
     send

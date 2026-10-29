@@ -3,7 +3,6 @@
 
 import type { Advice, AdviceCondition, RoundConfig } from '../../../../shared/types'
 import type { ChatConfig } from '../../../../shared/options'
-import type { RoundState } from '../cct/scoring'
 
 // The parts of Chat.config.json the advice uses
 export type AdviceSettings = Pick<ChatConfig, 'riskyFlips' | 'safeFlips'>
@@ -24,17 +23,11 @@ function riskyTotalFlips(round: RoundConfig, riskyFlips: number): number {
 
 // TODO: add safe and optimal conditions (might just move that logic into getAdvice)
 
-export function getAdvice(state: RoundState, condition: AdviceCondition, settings: AdviceSettings): Advice {
+// Advice is given on the break before a round, so it depends only on that round's settings
+export function getAdvice(config: RoundConfig, condition: AdviceCondition, settings: AdviceSettings): Advice {
     // TODO: add safe and optimal conditions.
-    const suggestedTotalFlips = riskyTotalFlips(state.config, settings.riskyFlips)
-    const flipsSoFar = state.flips.length
-    // Risky advice always says to keep flipping, even past the suggested total. Other
-    // conditions suggest flipping until the suggested total, then stopping
-    const action = condition === 'risky' || flipsSoFar < suggestedTotalFlips ? 'flip' : 'stop'
     return {
         condition,
-        suggestedTotalFlips,
-        flipsSoFar,
-        action
+        suggestedTotalFlips: riskyTotalFlips(config, settings.riskyFlips)
     }
 }
