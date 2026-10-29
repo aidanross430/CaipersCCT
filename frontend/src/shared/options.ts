@@ -4,7 +4,7 @@ import type { AdviceCondition, TrialConfig } from "./types"
 export type Options = {
   design: DesignConfig
   chat: ChatConfig
-  prompts: { identityHuman: string; identityAi: string; style: string; rules: string; situation: string }
+  prompts: {  style: string; rules: string; situation: string }
 }
 
 // The files in the Options/ folder. Shared so the loader (main) and anything that reports
@@ -15,8 +15,6 @@ export const CONFIG_FILES = {
 } as const
 
 export const PROMPT_FILES = {
-  identityHuman: 'identity-human.md',
-  identityAi: 'identity-ai.md',
   style: 'style.md',
   rules: 'rules.md',
   situation: 'situation.md'

@@ -13,7 +13,6 @@ const MAX_HISTORY = 20
 
 export type PromptInput = {
     persona: Persona
-    displayCondition: 'human' | 'ai'
     advice: Advice
     upcomingRound: RoundConfig      // the round the break comes before
     totalScore: number
@@ -22,7 +21,7 @@ export type PromptInput = {
 }
 
 export function buildPrompt(input: PromptInput): ChatRequest {
-    const { persona, displayCondition, advice, upcomingRound: round, totalScore, history, prompts } = input
+    const { persona, advice, upcomingRound: round, totalScore, history, prompts } = input
 
     // Merges the information needed by each prompt with the relevant round information
     // This array needs to include everything the AI should be able to answer
@@ -40,8 +39,7 @@ export function buildPrompt(input: PromptInput): ChatRequest {
         adviceText: adviceText(advice)
     }
 
-    const identity = displayCondition === 'human' ? prompts.identityHuman : prompts.identityAi
-    const system = [identity, prompts.style, prompts.rules, prompts.situation]
+    const system = [prompts.style, prompts.rules, prompts.situation]
         .map((template) => fillTemplate(template,values))
         .join('\n\n')
 
