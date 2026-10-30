@@ -1,8 +1,9 @@
-import { useState, type JSX } from 'react'
+import { useEffect, useState, type JSX } from 'react'
 import { useSession } from '../state/SessionContext'
 import ChatPanel from '../components/chat/ChatPanel'
 import Round from '../components/Round'
 import { useChat } from '../features/chatbox/useChat'
+import { getAdvice } from '../features/chatbox/advice'
 import { useOptions } from '../state/optionsContext'
 import {
   flipCard,
@@ -15,7 +16,7 @@ import {
 // The task page. It owns the state of the round being played, so anything else on the page
 // (the chat panel, later) can read the same round the card grid shows
 export default function Task(): JSX.Element | null {
-  const { session, completeRound, finishSession, completeBlock, saveMessage } = useSession()
+  const { session, completeRound, finishSession, completeBlock, saveMessage, setLiveTask } = useSession()
   // The advised block opens on the break screen too, so the chat is available before its first round
   const [betweenRounds, setBetweenRounds] = useState(session.block === 'advised')
 
@@ -49,6 +50,22 @@ export default function Task(): JSX.Element | null {
     totalScoreBefore: trialScoreBefore,
     saveMessage
   })
+
+  // Report this page's part of the proctor view (SessionContext publishes it). On the break,
+  // the advice is worked out the same way the LLM's is, so a proctor gives the same advice
+  useEffect(() => {
+    setLiveTask({
+      round,
+      betweenRounds,
+      upcoming:
+        betweenRounds && config
+          ? { round: config, advice: getAdvice(config, chatConfig.adviceCondition, chatConfig) }
+          : null,
+      chat: chat.messages
+    })
+  }, [setLiveTask, round, betweenRounds, config, chatConfig, chat.messages])
+  // Cleared when the page goes (interlude, complete), so the view doesn't show a stale round
+  useEffect(() => () => setLiveTask(null), [setLiveTask])
 
   // Only happens if there are no rounds left; PhaseGuard moves on once the session finishes
   if (!config) return null

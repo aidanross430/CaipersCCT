@@ -13,6 +13,9 @@ import { API_KEY_FILE, readApiKey } from './apiKey';
 import { loadOptions, optionsHash, OptionsError } from './options';
 import type { Options } from '../shared/options';
 import { appendMessage } from './storage';
+import type { ParticipantLink, PartnerStatus } from '../shared/partner/link';
+import type { ProctorView } from '../shared/partner/protocol';
+import { createFakeLink } from './partner/fakeLink';
 
 // Sessions created during this run of the app: id -> folder path.
 // The renderer can only refer to sessions that main created.
@@ -198,6 +201,34 @@ app.whenReady().then(async () => {
     const dir = sessionDir(sessionId)
     await queue.run(sessionId, () => appendMessage(dir, message))
   })
+
+  // For the human partner (proctor) condition
+  // TODO: gate on a partnerSource option ('llm' | 'proctor') once Chat.config.json has one.
+  // displayCondition is what participants are *told*, so it can't decide this for real
+  // TODO: createLanHost() in place of the fake link (step 3)
+  const link: ParticipantLink | null =
+    options.chat.displayCondition === 'human' ? createFakeLink() : null
+  // Kept so a renderer that loads after a status change can still ask for it
+  let partnerStatus: PartnerStatus | null = null
+
+  // Sent to every window: there's only one, but on macOS it can be closed and reopened
+  const push = (channel: string, value: unknown): void => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, value)
+  }
+  link?.onStatus((status) => {
+    partnerStatus = status
+    push(IPC.partnerStatus, status)
+  })
+  link?.onMessage((message) => {
+    // The handshake is the link's business; the renderer only sees chat and typing
+    if (message.type !== 'handshake') push(IPC.partnerMessage, message)
+  })
+  ipcMain.on(IPC.partnerPublish, (_event, view: ProctorView) => {
+    if (typeof view !== 'object' || view === null) return
+    link?.send({ type: 'view', view })
+  })
+  ipcMain.handle(IPC.partnerStatusGet, () => partnerStatus)
+  app.on('before-quit', () => link?.close())
 
 
   createWindow()

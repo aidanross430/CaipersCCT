@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
 import type { AdviceCondition, ChatMessage, RoundConfig, TrialConfig } from '../../../../shared/types'
 import type { ChatConfig, Options, Persona } from '../../../../shared/options'
 import { chatReducer, initialChatState } from './conversation'
@@ -129,8 +129,14 @@ export function useChat(options: UseChatOptions,): UseChat {
   // still kept in state and saved to disk; this only changes what's displayed
   const currentRound = options.upcomingRound?.roundIndex
   const sentThisRound = state.lastSendRound === currentRound
+  // Memoized so the list only changes when a message does: Task passes it to an effect (the
+  // proctor view), and a new array every render would re-run that effect every render
+  const messages = useMemo(
+    () => state.messages.filter((m) => m.roundIndex === currentRound),
+    [state.messages, currentRound]
+  )
   return {
-    messages: state.messages.filter((m) => m.roundIndex === currentRound),
+    messages,
     // A reply still pending from the previous break is discarded when it arrives, so don't
     // show "..." or that break's error in the new break's empty chat
     partnerTyping: state.pendingReplies > 0 && state.typingVisible && sentThisRound,

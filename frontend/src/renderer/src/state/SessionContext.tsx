@@ -1,8 +1,9 @@
-import { createContext, useContext, useReducer, useRef, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useReducer, useRef, useState, type ReactNode } from 'react'
 import { RoundResponse, SessionData, ChatMessage } from '../../../shared/types'
 import { sessionReducer, initialSession } from '../features/cct/session'
 import { useOptions } from './optionsContext'
 import { buildRoundConfigs } from '../features/cct/design'
+import { buildView, type LiveTask } from '../features/partner/view'
 
 
 // This file is responsible for handling data flow to the main process
@@ -18,6 +19,7 @@ type SessionContextValue = {
     completeInterlude: () => void
     saveMessage: (message: ChatMessage) => void
     saveError: string | null    // message from the last failed save, or null if none failed
+    setLiveTask: (live: LiveTask | null) => void  // Task reports its round, break and chat for the proctor view
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null)
@@ -28,6 +30,14 @@ export function SessionProvider({ children }: {children: ReactNode}) {
     const sessionIdRef = useRef<string | null>(null)
     const [saveError, setSaveError] = useState<string | null>(null)
     const options = useOptions()
+    const [liveTask, setLiveTask] = useState<LiveTask | null>(null)
+
+    // The proctor's view of the task, sent whole on every change. Published from here, not from
+    // Task, so there's one publisher that keeps going on the pages Task isn't on (interlude,
+    // complete). Main drops it when there's no human partner this session
+    useEffect(() => {
+        window.api.publishView(buildView(session, liveTask))
+    }, [session, liveTask])
 
     // Action Definitions
     const startSession = async (participantId: string): Promise<void> => {
@@ -84,7 +94,7 @@ export function SessionProvider({ children }: {children: ReactNode}) {
     }
 
     return (
-        <SessionContext.Provider value={{session, startSession, completeRound, finishSession, completeBlock, completeInterlude, saveMessage, saveError}}>
+        <SessionContext.Provider value={{session, startSession, completeRound, finishSession, completeBlock, completeInterlude, saveMessage, saveError, setLiveTask}}>
             {children}
         </SessionContext.Provider>
     )
