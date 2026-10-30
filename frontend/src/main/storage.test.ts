@@ -8,7 +8,7 @@ import { appendMessage, appendRound, checkWritable, createSession, finishSession
 
 const session: SessionFile = {
   participantId: 'P001',
-  trialConfig: { designSeed: 1, chatDisplayCondition: 'ai' },
+  trialConfig: { designSeed: 1, partnerType: 'ai' },
   roundConfigs: [
     {
       roundIndex: 0,

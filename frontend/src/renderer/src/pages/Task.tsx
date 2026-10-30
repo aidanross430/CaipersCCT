@@ -35,7 +35,7 @@ export default function Task(): JSX.Element | null {
   // The chat lives here (not on the break screen) so the conversation state carries over
   // between rounds. Hooks have to run before the early returns below
   const { chat: chatConfig, prompts } = useOptions()
-  const persona = chatConfig.personas[session.trialConfig.chatDisplayCondition]
+  const persona = chatConfig.personas[session.trialConfig.partnerType]
   const chat = useChat({
     // On the break screen the chat is about the upcoming round. While a round is played the
     // chat is hidden and gets no round, so a reply still pending when the round starts is
@@ -44,7 +44,7 @@ export default function Task(): JSX.Element | null {
     adviceCondition: chatConfig.adviceCondition,
     chat: chatConfig,
     prompts,
-    displayCondition: session.trialConfig.chatDisplayCondition,
+    partnerType: session.trialConfig.partnerType,
     persona,
     totalScoreBefore: trialScoreBefore,
     saveMessage

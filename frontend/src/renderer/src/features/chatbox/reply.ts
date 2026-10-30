@@ -18,7 +18,7 @@ export type ReplyDeps = {
 export type ReplyInput = {
   upcomingRound: RoundConfig                  // the round the break comes before
   adviceCondition: AdviceCondition
-  displayCondition: TrialConfig['chatDisplayCondition']
+  partnerType: TrialConfig['partnerType']
   persona: Persona
   totalScoreBefore: number
   history: ChatMessage[]                      // includes the message just sent

@@ -16,7 +16,7 @@ export type SessionFile = SessionStartPayload & {
 
 export type TrialConfig = {
     designSeed: number                      // The rng seed for the design
-    chatDisplayCondition: 'human' | 'ai'    // Is the participant told they are talking to a human or LLM?
+    partnerType: 'human' | 'ai'     // Is the participant talking to the LLM or a real person?
 }
 
 // The settings for each round, determining number of loss cards and each card's point worth

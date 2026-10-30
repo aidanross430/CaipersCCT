@@ -8,7 +8,7 @@ import { requestPartnerReply, type ReplyOutcome } from './reply'
 export type UseChatOptions = {
   upcomingRound: RoundConfig | null             // the round the current break is before; null while a round is played
   adviceCondition: AdviceCondition
-  displayCondition: TrialConfig['chatDisplayCondition']
+  partnerType: TrialConfig['partnerType']
   persona: Persona
   totalScoreBefore: number                      // total from earlier rounds
   saveMessage: (message: ChatMessage) => void   // from SessionContext; saves to disk

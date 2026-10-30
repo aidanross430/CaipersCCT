@@ -18,7 +18,7 @@ export const initialSession: SessionData = {
     phase: 'welcome',
     trialConfig: {
         designSeed: 0,
-        chatDisplayCondition: 'ai'      // placeholder: replaced at START by displayCondition in Chat.config.json
+        partnerType: 'ai'               // placeholder: replaced at START by displayCondition in Chat.config.json
     },
     roundConfigs: [],
     roundResponses: [],
