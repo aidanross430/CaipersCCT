@@ -28,8 +28,8 @@ export function startRound(config: RoundConfig, now: number): RoundState {
 
 // Determines whether the card flipped was a gain or a loss
 export function resolveFlip(config: RoundConfig, cardPosition: number, flipsSoFar: number): 'gain' | 'loss' {
-    // Throw an error if the round is rigged
-    if (config.rigged) {
+    // Rigged rounds ignore card positions: the loss is whichever card is turned on lossOnFlipNum
+    if (config.roundType === 'rigged') {
         // return loss if this card is rigged to be a loss
         return flipsSoFar+1 === config.lossOnFlipNum ? 'loss' : 'gain'
     }
@@ -102,12 +102,19 @@ export function toRoundResponse(state: RoundState, trialScoreBefore: number, blo
 
     // Final value calculations
     const gainCardsFlipped = state.flips.filter((f) => f.outcome === 'gain').length
-    const trialScore = state.config.isPractice ? trialScoreBefore : trialScoreBefore + state.roundScore
+    const trialScore = trialScoreBefore + state.roundScore
+    const { config } = state
 
     // return the round response
     return {
-        roundIndex: state.config.roundIndex,
+        roundIndex: config.roundIndex,
+        blockIndex: config.blockIndex,
         block,
+        roundType: config.roundType,
+        gainAmount: config.gainAmount,
+        lossAmount: config.lossAmount,
+        numberLossCards: config.numberLossCards,
+        lossOnFlipNum: config.lossOnFlipNum,
         flips: state.flips,
         endReason: state.endReason,
         gainCardsFlipped,

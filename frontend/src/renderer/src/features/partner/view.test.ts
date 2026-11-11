@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import type { RoundConfig, SessionData } from '../../../../shared/types'
+import type { RoundConfig, RoundResponse, SessionData } from '../../../../shared/types'
 import { initialSession } from '../cct/session'
 import { startRound, flipCard } from '../cct/scoring'
 import { buildView } from './view'
@@ -7,15 +7,25 @@ import { buildView } from './view'
 const config: RoundConfig = {
   roundIndex: 2,
   blockIndex: 1,
-  isPractice: false,
   gainAmount: 10,
   lossAmount: 250,
   numberLossCards: 1,
   totalCards: 32,
   lossPositions: [7],
-  rigged: false,
-  lossOnFlipNum: null
+  lossOnFlipNum: null,
+  roundType: 'filler'
 }
+
+// The design fields a RoundResponse copies from its round's config
+const design = (roundIndex: number): Omit<RoundResponse, 'block' | 'flips' | 'endReason' | 'gainCardsFlipped' | 'trialScore' | 'roundScore'> => ({
+  roundIndex,
+  blockIndex: config.blockIndex,
+  roundType: config.roundType,
+  gainAmount: config.gainAmount,
+  lossAmount: config.lossAmount,
+  numberLossCards: config.numberLossCards,
+  lossOnFlipNum: config.lossOnFlipNum
+})
 
 const session: SessionData = {
   ...initialSession,
@@ -23,8 +33,8 @@ const session: SessionData = {
   block: 'advised',
   roundConfigs: [config, config, config, config],
   roundResponses: [
-    { roundIndex: 0, block: 'solo', flips: [], endReason: 'stopped', gainCardsFlipped: 3, trialScore: 30, roundScore: 30 },
-    { roundIndex: 1, block: 'solo', flips: [], endReason: 'loss', gainCardsFlipped: 1, trialScore: -210, roundScore: -240 }
+    { ...design(0), block: 'solo', flips: [], endReason: 'stopped', gainCardsFlipped: 3, trialScore: 30, roundScore: 30 },
+    { ...design(1), block: 'solo', flips: [], endReason: 'loss', gainCardsFlipped: 1, trialScore: -210, roundScore: -240 }
   ]
 }
 

@@ -43,7 +43,6 @@ export function toPublicConfig(config: PublicRoundConfig): PublicRoundConfig {
   return {
     roundIndex: config.roundIndex,
     blockIndex: config.blockIndex,
-    isPractice: config.isPractice,
     gainAmount: config.gainAmount,
     lossAmount: config.lossAmount,
     numberLossCards: config.numberLossCards,

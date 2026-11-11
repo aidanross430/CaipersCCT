@@ -8,14 +8,13 @@ const SETTINGS = { riskyFlips: 7, safeFlips: 7 }
 const config: RoundConfig = {
   roundIndex: 0,
   blockIndex: 1,
-  isPractice: false,
   gainAmount: 20,
   lossAmount: 250,
   numberLossCards: 1,
   totalCards: 32,
   lossPositions: [31],
-  rigged: false,
-  lossOnFlipNum: null
+  lossOnFlipNum: null,
+  roundType: 'filler'
 }
 
 describe('getAdvice (risky)', () => {

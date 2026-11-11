@@ -13,14 +13,13 @@ const session: SessionFile = {
     {
       roundIndex: 0,
       blockIndex: 0,
-      isPractice: false,
       gainAmount: 10,
       lossAmount: 250,
       numberLossCards: 1,
       totalCards: 32,
       lossPositions: [5],
-      rigged: false,
-      lossOnFlipNum: null
+      lossOnFlipNum: null,
+      roundType: 'filler'
     }
   ],
   sessionStart: '2026-10-11T12:00:00.000Z',
@@ -53,7 +52,13 @@ const session: SessionFile = {
 
 const round: RoundResponse = {
   roundIndex: 0,
+  blockIndex: 0,
   block: 'solo',
+  roundType: 'filler',
+  gainAmount: 10,
+  lossAmount: 250,
+  numberLossCards: 1,
+  lossOnFlipNum: null,
   flips: [],
   endReason: 'stopped',
   gainCardsFlipped: 0,

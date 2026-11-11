@@ -64,12 +64,9 @@ async function readOptionalJsonl<T>(path: string): Promise<T[]> {
     .map((line) => JSON.parse(line) as T)
 }
 
-// Creates a 'rounds csv' which builds out one round per code\
-
+// Creates a 'rounds csv' with one row per round. Each rounds.jsonl line already carries the
+// round's design, so nothing needs looking up in session.json
 function buildRoundsCsv(session: SessionFile, rounds: RoundResponse[]): string {
-    // Look up each round's settings by roundIndex
-    const configs = new Map(session.roundConfigs.map((c) => [c.roundIndex, c]))
-
     // Builds out the csv header
     const header = [
         'participantId', 'roundIndex', 'blockIndex', 'block', 'roundType', 'gainAmount', 'lossAmount',
@@ -77,15 +74,11 @@ function buildRoundsCsv(session: SessionFile, rounds: RoundResponse[]): string {
         'gainCardsFlipped', 'roundScore', 'trialScore'
     ]
 
-    // Indicates what the configuration was for each round
-    const rows = rounds.map((r) => {
-        const c = configs.get(r.roundIndex)
-        return [
-        session.participantId, r.roundIndex, c?.blockIndex, r.block, c?.roundType, c?.gainAmount, c?.lossAmount,
-        c?.numberLossCards, c?.lossOnFlipNum, r.endReason,
+    const rows = rounds.map((r) => [
+        session.participantId, r.roundIndex, r.blockIndex, r.block, r.roundType, r.gainAmount, r.lossAmount,
+        r.numberLossCards, r.lossOnFlipNum, r.endReason,
         r.gainCardsFlipped, r.roundScore, r.trialScore
-        ]
-    })
+    ])
 
     // Creates the csv string
     return toCsv(header, rows)

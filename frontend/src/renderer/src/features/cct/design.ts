@@ -77,7 +77,6 @@ export function placeLossCards(numberLossCards: number, totalCards: number, rng:
 export function assignRigging(rounds: RoundConfig[]): RoundConfig[] {
   return rounds.map((round) => ({
     ...round,
-    rigged: true,
     roundType: 'rigged',
     // The loss lands on the last possible flip, right after every gain card has been turned,
     // so a participant can take all (totalCards - numberLossCards) gain cards before losing
@@ -104,13 +103,11 @@ export function buildFillerRounds(
     return {
       roundIndex: 0, // temp value, set once the blocks are joined in buildRoundConfigs
       blockIndex,
-      isPractice: false,
       gainAmount: pick(config.gainAmounts),
       lossAmount: pick(config.lossAmounts),
       numberLossCards,
       totalCards: config.totalCards,
       lossPositions: placeLossCards(numberLossCards, config.totalCards, rng),
-      rigged: false,
       lossOnFlipNum: null,
       roundType: 'filler'
     }
@@ -137,11 +134,9 @@ export function buildRoundConfigs(config: DesignConfig, seed: number): RoundConf
       const rounds = shuffle(conditions, rng).map((condition): RoundConfig => ({
         roundIndex: 0, // temp value before blocks are joined in this functions return
         blockIndex,
-        isPractice: false,
         ...condition,
         totalCards: config.totalCards,
         lossPositions: [], // rigged rounds don't use loss positions; assignRigging sets the loss flip
-        rigged: false,
         lossOnFlipNum: null,
         roundType: 'rigged'
       }))

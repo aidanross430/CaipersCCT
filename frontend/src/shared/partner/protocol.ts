@@ -9,14 +9,14 @@ import { CardFlip, RoundEndReason, Advice, Phase, Block, RoundConfig, ChatMessag
 //   A number bumped whenever the shape of message data changes. This is verified
 //   in the proctor-participent handshake when starting the task to make sure
 //   everything worked.
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 // Character limit on proctor messages to participant
 export const MAX_MESSAGE_LENGTH = 256
 
 // A trimmed version of the RoundConfig used only by the proctor view
 export type PublicRoundConfig = Pick<RoundConfig,
-    'roundIndex' | 'blockIndex' | 'isPractice' | 'gainAmount' | 'lossAmount' | 'numberLossCards' | 'totalCards'>
+    'roundIndex' | 'blockIndex' | 'gainAmount' | 'lossAmount' | 'numberLossCards' | 'totalCards'>
 
 // LiveRound is a trimmed version of the roundState kept only in the renderer (from scoring.ts)
 // contains only the information that the proctor needs to see to keep round state live

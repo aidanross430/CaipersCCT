@@ -23,15 +23,13 @@ export type TrialConfig = {
 export type RoundConfig = {
     roundIndex: number              // what number round are we on?
     blockIndex: number              // Which block are we on?
-    isPractice: boolean             // will not add round score to final score.
     gainAmount: number              // how many points are each gain card worth?
     lossAmount: number              // how many points are each loss card worth?
     numberLossCards: number         // how many loss cards are in this round?
     totalCards: number               // The number of cards in this round
-    lossPositions: number[]         // On non-rigged rounds, where are the loss cards?
-    rigged: boolean                 // loss card position not determined by rng seed but by flip #
-    lossOnFlipNum: number | null    // for rigged trials, what flip is the loss on?
-    roundType: 'rigged' | 'filler'  // Only rigged rounds should be considered for analysis
+    lossPositions: number[]         // Filler rounds only: where are the loss cards? (empty when rigged)
+    lossOnFlipNum: number | null    // Rigged rounds only: which flip is the loss on? (null for filler)
+    roundType: 'rigged' | 'filler'  // rigged: loss decided by flip # (analysed). filler: real loss positions, not analysed
 }
 
 // Data structure for each flip the participant performs
@@ -48,8 +46,10 @@ export type RoundEndReason = 'stopped' | 'loss' | 'allGainsRevealed'
 
 // Round Responses - this is basically the data that will be exported for each round
 // in the trial
-export type RoundResponse = {
-    roundIndex: number         // Which Round was this?
+// Each line of rounds.jsonl is one of these, so it carries the round's design alongside the
+// outcome: a session that ends early still has everything needed to analyse its rounds
+export type RoundResponse = Pick<RoundConfig,
+    'roundIndex' | 'blockIndex' | 'roundType' | 'gainAmount' | 'lossAmount' | 'numberLossCards' | 'lossOnFlipNum'> & {
     block: Block               // Was this round played in the solo or advised block?
     flips: CardFlip[]          // The set of flip data
     endReason: RoundEndReason  // Why did the round end?
