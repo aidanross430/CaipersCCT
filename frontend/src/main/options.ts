@@ -97,23 +97,21 @@ async function readJson(path: string): Promise<{ value?: unknown; error?: string
 
 const DESIGN_KEYS = [
   'totalCards',
-  'numRounds',
   'gainAmounts',
   'lossAmounts',
   'lossCardCounts',
-  'repititionsPerCondition',
-  'rigging'
+  'repititionsPerConditionPerBlock',
+  'numFillerRoundsPerBlock'
 ]
 
 export function validateDesignConfig(value: unknown): string[] {
   if (!isObject(value)) return ['must be a JSON object, { ... }']
   const problems = unknownKeys(value, DESIGN_KEYS)
 
-  const { totalCards, numRounds, gainAmounts, lossAmounts, lossCardCounts, repititionsPerCondition, rigging } =
+  const { totalCards, gainAmounts, lossAmounts, lossCardCounts, repititionsPerConditionPerBlock, numFillerRoundsPerBlock } =
     value
 
   if (!isInt(totalCards) || totalCards < 2) problems.push(`totalCards must be a whole number of at least 2 (got ${show(totalCards)})`)
-  if (!isInt(numRounds) || numRounds < 1) problems.push(`numRounds must be a whole number of at least 1 (got ${show(numRounds)})`)
   problems.push(...positiveList('gainAmounts', gainAmounts))
   problems.push(...positiveList('lossAmounts', lossAmounts))
 
@@ -125,19 +123,14 @@ export function validateDesignConfig(value: unknown): string[] {
     }
   }
 
-  if (!isInt(repititionsPerCondition) || repititionsPerCondition < 1) {
-    problems.push(`repititionsPerCondition must be a whole number of at least 1 (got ${show(repititionsPerCondition)})`)
+  if (!isInt(repititionsPerConditionPerBlock) || repititionsPerConditionPerBlock < 1) {
+    problems.push(`repititionsPerCondition must be a whole number of at least 1 (got ${show(repititionsPerConditionPerBlock)})`)
   }
 
-  if (!isObject(rigging)) {
-    problems.push('rigging must be an object, { "roundsRigged": ... }')
-  } else {
-    problems.push(...unknownKeys(rigging, ['roundsRigged'], 'rigging.'))
-    const { roundsRigged } = rigging
-    if (!isInt(roundsRigged) || roundsRigged < 0 || (isInt(numRounds) && roundsRigged > numRounds)) {
-      problems.push(`rigging.roundsRigged must be a whole number from 0 to numRounds (got ${show(roundsRigged)})`)
-    }
+  if (!isInt(numFillerRoundsPerBlock) || numFillerRoundsPerBlock < 0) {
+    problems.push(`numFillerRoundsPerBlock must be an integer, 0 or greater. (got ${show(numFillerRoundsPerBlock)})`)
   }
+
   return problems
 }
 

@@ -31,6 +31,7 @@ export type RoundConfig = {
     lossPositions: number[]         // On non-rigged rounds, where are the loss cards?
     rigged: boolean                 // loss card position not determined by rng seed but by flip #
     lossOnFlipNum: number | null    // for rigged trials, what flip is the loss on?
+    roundType: 'rigged' | 'filler'  // Only rigged rounds should be considered for analysis
 }
 
 // Data structure for each flip the participant performs

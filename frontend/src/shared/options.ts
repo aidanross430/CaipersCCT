@@ -45,15 +45,12 @@ export const DISPLAY_CONDITIONS = ['human', 'ai'] as const satisfies readonly Tr
 // The configuration across the entire trial
 export type DesignConfig = {
   totalCards: number                 // 32
-  numRounds: number
   gainAmounts: number[]              // e.g. [10, 20, 30] 
   lossAmounts: number[]              // e.g. [250, 500, 750]
   lossCardCounts: number[]           // e.g. [1, 2, 3]
-  repititionsPerCondition: number
+  repititionsPerConditionPerBlock: number
   // practiceRounds: Omit<RoundConfig, 'roundIndex'>[]   // listed explicitly, not generated
-  rigging: {
-    roundsRigged: number             
-  }
+  numFillerRoundsPerBlock: number
 }
 
 
