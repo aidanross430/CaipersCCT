@@ -16,6 +16,10 @@ import { appendMessage } from './storage';
 import type { ParticipantLink, PartnerStatus } from '../shared/partner/link';
 import type { ProctorView } from '../shared/partner/protocol';
 import { createFakeLink } from './partner/fakeLink';
+import { createLanHost } from './partner/lanHost';
+
+// Fixed, so the firewall rule and the proctor's bookmark stay the same between sessions
+const PARTNER_PORT = 47800
 
 // Sessions created during this run of the app: id -> folder path.
 // The renderer can only refer to sessions that main created.
@@ -205,11 +209,24 @@ app.whenReady().then(async () => {
   // For the human partner (proctor) condition
   // TODO: gate on a partnerSource option ('llm' | 'proctor') once Chat.config.json has one.
   // displayCondition is what participants are *told*, so it can't decide this for real
-  // TODO: createLanHost() in place of the fake link (step 3)
-  const link: ParticipantLink | null =
-    options.chat.displayCondition === 'human' ? createFakeLink() : null
+  // CCT_FAKE_PROCTOR=1 swaps in the stand-in proctor (fakeLink.ts), for UI work without a browser
+  let link: ParticipantLink | null = null
+  if (options.chat.displayCondition === 'human') {
+    link =
+      process.env.CCT_FAKE_PROCTOR === '1'
+        ? createFakeLink()
+        : createLanHost({
+            port: PARTNER_PORT,
+            // out/renderer, next to out/main, in both `npm start` and the packaged app
+            staticDir: join(__dirname, '../renderer'),
+            devServerUrl: is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined,
+            onProblem: (problem) => console.warn('[partner]', problem)
+          })
+  }
   // Kept so a renderer that loads after a status change can still ask for it
   let partnerStatus: PartnerStatus | null = null
+  // TODO: remove once the Welcome page shows the join url and code
+  link?.onStatus((status) => console.log('[partner]', status))
 
   // Sent to every window: there's only one, but on macOS it can be closed and reopened
   const push = (channel: string, value: unknown): void => {

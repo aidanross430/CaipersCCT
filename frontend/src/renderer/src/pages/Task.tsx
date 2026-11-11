@@ -135,7 +135,7 @@ export default function Task(): JSX.Element | null {
   const handleNext = (): void => handleRoundDone(round)
 
   return (
-    <main className="trial">
+    <main className="trial trial-play">
       <div className="trial-badge">
         Round {roundNumber + 1} of {totalRounds}
       </div>

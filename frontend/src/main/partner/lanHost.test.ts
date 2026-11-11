@@ -1,5 +1,8 @@
-import { describe, it, expect, afterEach, vi } from 'vitest'
+import { describe, it, expect, afterEach, beforeAll, afterAll, vi } from 'vitest'
 import { WebSocket } from 'ws'
+import { mkdir, mkdtemp, rm, writeFile } from 'fs/promises'
+import { tmpdir } from 'os'
+import { join } from 'path'
 import { createLanHost, type LanHost, type LanHostOptions } from './lanHost'
 import type { PartnerStatus } from '../../shared/partner/link'
 import { PROTOCOL_VERSION, type ProctorView, type ToParticipant, type ToProctor } from '../../shared/partner/protocol'
@@ -244,6 +247,66 @@ describe('createLanHost', () => {
       await host.closed
       const again = await start({ port })
       expect(again.port).toBe(port)
+    })
+  })
+
+  describe('proctor page', () => {
+    // A stand-in for out/renderer: the proctor page, the participant app, one asset, and a
+    // file outside assets/ that must never be reachable
+    let root: string
+    let staticDir: string
+    beforeAll(async () => {
+      root = await mkdtemp(join(tmpdir(), 'cct-lanhost-'))
+      staticDir = join(root, 'renderer')
+      await mkdir(join(staticDir, 'assets'), { recursive: true })
+      await writeFile(join(staticDir, 'proctor.html'), '<p>proctor</p>')
+      await writeFile(join(staticDir, 'index.html'), '<p>participant</p>')
+      await writeFile(join(staticDir, 'assets', 'proctor-abc.js'), 'console.log(1)')
+      await writeFile(join(root, 'secret.txt'), 'secret')
+    })
+    afterAll(async () => {
+      await rm(root, { recursive: true })
+    })
+
+    const get = async (port: number, path: string): Promise<Response> =>
+      fetch(`http://127.0.0.1:${port}${path}`, { redirect: 'manual' })
+
+    it('serves proctor.html at / and at /proctor.html', async () => {
+      const { port } = await start({ staticDir })
+      for (const path of ['/', '/proctor.html']) {
+        const res = await get(port, path)
+        expect(res.status).toBe(200)
+        expect(res.headers.get('content-type')).toContain('text/html')
+        expect(await res.text()).toBe('<p>proctor</p>')
+      }
+    })
+
+    it('serves files from assets/ with their content type', async () => {
+      const { port } = await start({ staticDir })
+      const res = await get(port, '/assets/proctor-abc.js')
+      expect(res.status).toBe(200)
+      expect(res.headers.get('content-type')).toContain('text/javascript')
+    })
+
+    it('never serves the participant app or anything outside assets/', async () => {
+      const { port } = await start({ staticDir })
+      for (const path of ['/index.html', '/assets/missing.js', '/assets/..%2F..%2Fsecret.txt', '/secret.txt']) {
+        expect((await get(port, path)).status).toBe(404)
+      }
+    })
+
+    it('answers 404 for every page when there is no staticDir', async () => {
+      const { port } = await start()
+      expect((await get(port, '/')).status).toBe(404)
+    })
+
+    it('in dev, redirects to the Vite server with ?host set to this server', async () => {
+      const { port } = await start({ staticDir, devServerUrl: 'http://localhost:5173' })
+      const res = await get(port, '/')
+      expect(res.status).toBe(302)
+      expect(res.headers.get('location')).toBe(
+        `http://localhost:5173/proctor.html?host=${encodeURIComponent(`127.0.0.1:${port}`)}`
+      )
     })
   })
 })

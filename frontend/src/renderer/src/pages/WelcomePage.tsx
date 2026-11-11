@@ -35,7 +35,7 @@ export default function WelcomePage(): JSX.Element {
         </li>
       </ol>
       <p>
-        The number of loss cards and the points for each card change from round to round. Decide
+        The number of loss cards and the points gained or lost for each card change from round to round. Decide
         how many cards to turn over based on how much each card is worth, how likely you are to
         turn over a loss card, and how many points a loss card will take away.
       </p>

@@ -194,9 +194,46 @@ button {
 }
 
 .grid {
+  --cols: 8;
+  --gap: 16px;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: var(--gap);
+  container-type: inline-size; /* card text sizes from the grid's width (cqw), not the window's */
+}
+
+/* The round page is exactly one window tall, so the whole board shows on any monitor. The
+   grid takes whatever height is left and, when that's the tighter limit, narrows until its
+   rows fit (the cards keep their shape). Only the task page opts in, since the grid area has
+   no height of its own anywhere else */
+.trial-play {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.trial-play > * {
+  flex: none;
+}
+.trial-play .trial-badge {
+  align-self: flex-start;
+}
+.trial-play .grid-area {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+}
+.trial-play .grid {
+  --rows: round(up, var(--cards) / var(--cols), 1);
+  /* The width at which the rows exactly fill the area's height: card height from the rows,
+     card width from the 110 / 144 card shape, then the columns and gaps across */
+  width: min(
+    100%,
+    calc(
+      (100cqh - (var(--rows) - 1) * var(--gap)) / var(--rows) * 110 / 144 * var(--cols) +
+        (var(--cols) - 1) * var(--gap)
+    )
+  );
+  margin: 0 auto;
 }
 .card {
   aspect-ratio: 110 / 144;
@@ -207,7 +244,7 @@ button {
   align-items: center;
   justify-content: center;
   color: var(--faint);
-  font-size: clamp(32px, 4.4vw, 60px);
+  font-size: clamp(20px, 4.9cqw, 60px);
   font-weight: 300;
   line-height: 1;
   user-select: none;
@@ -220,7 +257,7 @@ button {
 }
 .card.gain,
 .card.loss {
-  font-size: clamp(16px, 2vw, 26px);
+  font-size: clamp(12px, 2.1cqw, 26px);
   font-weight: 700;
 }
 .card.gain {
@@ -282,7 +319,8 @@ button {
 /* Advised block: the chat sits between "Get ready" and the Start round button */
 .between-rounds .chat {
   width: min(560px, 100%);
-  height: 480px;
+  /* Shrinks on shorter windows so the Start round button stays in view */
+  height: clamp(260px, 100vh - 120px, 480px);
   margin: 12px 0;
   text-align: left;
 }
@@ -403,10 +441,14 @@ button {
   cursor: not-allowed;
 }
 
-/* Shorter windows: a smaller chat box so the Start round button stays in view */
+/* Shorter windows: less padding around the board, leaving more height for the cards */
 @media (max-height: 800px) {
-  .between-rounds .chat {
-    height: 380px;
+  .trial-play {
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+  .trial-play .trial-badge {
+    margin-bottom: 16px;
   }
 }
 
@@ -426,7 +468,7 @@ button {
     gap: 6px;
   }
   .grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
+    --cols: 4;
+    --gap: 10px;
   }
 }

@@ -1,4 +1,4 @@
-import type { JSX } from 'react'
+import type { CSSProperties, JSX } from 'react'
 import type { RoundEndReason } from '../../../shared/types'
 import type { LiveRound } from '../../../shared/partner/protocol'
 
@@ -52,26 +52,29 @@ export default function Round({
         Round score: {round.roundScore}
       </p>
 
-      <div className="grid" aria-label="Cards">
-        {Array.from({ length: config.totalCards }, (_, position) => {
-          const flip = flipsByPosition.get(position)
-          return (
-            <button
-              key={position}
-              type="button"
-              className={flip ? `card ${flip.outcome}` : 'card'}
-              disabled={flip !== undefined || round.roundEnded}
-              onClick={(e) => onFlip(position, e.timeStamp)}
-              aria-label={flip ? `${flip.outcome} card` : `Card ${position + 1}, face down`}
-            >
-              {flip === undefined
-                ? '?'
-                : flip.outcome === 'gain'
-                  ? `+${config.gainAmount}`
-                  : `−${config.lossAmount}`}
-            </button>
-          )
-        })}
+      {/* --cards lets the CSS work out how many rows the grid has, to fit it to the window */}
+      <div className="grid-area">
+        <div className="grid" aria-label="Cards" style={{ '--cards': config.totalCards } as CSSProperties}>
+          {Array.from({ length: config.totalCards }, (_, position) => {
+            const flip = flipsByPosition.get(position)
+            return (
+              <button
+                key={position}
+                type="button"
+                className={flip ? `card ${flip.outcome}` : 'card'}
+                disabled={flip !== undefined || round.roundEnded}
+                onClick={(e) => onFlip(position, e.timeStamp)}
+                aria-label={flip ? `${flip.outcome} card` : `Card ${position + 1}, face down`}
+              >
+                {flip === undefined
+                  ? '?'
+                  : flip.outcome === 'gain'
+                    ? `+${config.gainAmount}`
+                    : `−${config.lossAmount}`}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       <div className="submit-row">

@@ -1,10 +1,13 @@
 // The participant side of the LAN transport: a WebSocket server the proctor connects to.
 // Implements ParticipantLink, so main/index.ts swaps it in for createFakeLink() with no other
 // changes. Runs in main only (Node), so it can use `ws`, `http`, `os` and `crypto`.
-import { createServer } from 'http'
+import { createServer, type IncomingMessage, type ServerResponse } from 'http'
 import type { AddressInfo } from 'net'
 import { randomInt } from 'crypto'
 import { networkInterfaces } from 'os'
+import { createSocket } from 'dgram'
+import { readFile } from 'fs/promises'
+import { extname, join as joinPath, resolve, sep } from 'path'
 import { WebSocketServer, WebSocket, type RawData } from 'ws'
 import {
   HEARTBEAT_INTERVAL_MS,
@@ -28,6 +31,10 @@ export type LanHostOptions = {
   onProblem?: (problem: string) => void  // bad messages, failed handshakes, dropped proctors
   heartbeatMs?: number              // default HEARTBEAT_INTERVAL_MS; tests shorten it
   handshakeTimeoutMs?: number       // default HANDSHAKE_TIMEOUT_MS; tests shorten it
+  staticDir?: string                // the built renderer folder holding proctor.html and assets/.
+                                    // Without it every page request gets a 404
+  devServerUrl?: string             // `npm run dev` only: the Vite dev server, which serves the
+                                    // proctor page with hot reload instead of staticDir
 }
 
 // A ParticipantLink, plus a promise for when close() has fully released the port
@@ -44,11 +51,13 @@ export function createLanHost(options: LanHostOptions): LanHost {
     hostname = '0.0.0.0',
     onProblem = () => {},
     heartbeatMs = HEARTBEAT_INTERVAL_MS,
-    handshakeTimeoutMs = HANDSHAKE_TIMEOUT_MS
+    handshakeTimeoutMs = HANDSHAKE_TIMEOUT_MS,
+    staticDir,
+    devServerUrl
   } = options
 
   // New each time the app starts
-  const code = String(randomInt(0, 10_000)).padStart(4, '0')
+  const code = String(randomInt(0, 10_000)).padStart(4, '0')    // the random 'room' code
   const messageListeners = new Set<(message: ToParticipant) => void>()
   const statusListeners = new Set<(status: PartnerStatus) => void>()
   const handshakeTimers = new Set<ReturnType<typeof setTimeout>>()
@@ -69,9 +78,9 @@ export function createLanHost(options: LanHostOptions): LanHost {
     socket.close()
   }
 
-  // In step 4 this serves the proctor page, so the proctor opens http://<ip>:<port> in a browser
-  const http = createServer((_req, res) => {
-    res.writeHead(404).end()
+  // Serves the proctor page, so the proctor just opens http://<ip>:<port> in a browser
+  const http = createServer((req, res) => {
+    void servePage(req, res, staticDir, devServerUrl)
   })
   const wss = new WebSocketServer({ server: http, maxPayload: MAX_PAYLOAD_BYTES })
 
@@ -85,8 +94,11 @@ export function createLanHost(options: LanHostOptions): LanHost {
   // Listening always finishes after main has subscribed, so the first status isn't missed
   http.listen(port, hostname, () => {
     const actualPort = (http.address() as AddressInfo).port
-    join = { url: `http://${lanAddress()}:${actualPort}`, code }
-    emitStatus({ state: 'waiting', join })
+    void lanAddress().then((address) => {
+      if (shuttingDown) return
+      join = { url: `http://${address}:${actualPort}`, code }
+      emitStatus({ state: 'waiting', join })
+    })
   })
 
   wss.on('connection', (socket) => {
@@ -101,11 +113,13 @@ export function createLanHost(options: LanHostOptions): LanHost {
     handshakeTimers.add(timer)
 
     socket.on('message', (data) => handleMessage(socket, data))
+
     socket.on('pong', () => {
       if (socket === proctor) missedPongs = 0
     })
     // Without a listener, a socket error would throw in main
     socket.on('error', (err) => onProblem(`Proctor connection error: ${err.message}`))
+    
     socket.on('close', () => {
       clearTimeout(timer)
       handshakeTimers.delete(timer)
@@ -223,20 +237,124 @@ export function createLanHost(options: LanHostOptions): LanHost {
   }
 }
 
-// Virtual adapters that Docker Desktop, WSL, VMs and VPNs add to Windows. Another machine on
-// the LAN can't reach these addresses, so they're only used if nothing else exists
-const VIRTUAL_ADAPTER = /vethernet|wsl|docker|virtualbox|vmware|hyper-v|vpn|tailscale|zerotier|bluetooth/i
-const PREFERRED_ADAPTER = /wi-?fi|wlan|wireless|ethernet|^en\d|^eth\d|^wl/i
+const CONTENT_TYPES: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2'
+}
 
-// The address the proctor should type in: an IPv4 address on a real Wi-Fi or Ethernet adapter
-export function lanAddress(): string {
+// Only the proctor page and its assets are served. Never index.html (the participant app),
+// and nothing outside assets/, so the page can't be used to read other files on this machine
+async function servePage(
+  req: IncomingMessage,
+  res: ServerResponse,
+  staticDir: string | undefined,
+  devServerUrl: string | undefined
+): Promise<void> {
+  const notFound = (): void => {
+    res.writeHead(404, { 'Content-Type': 'text/plain' }).end('Not found')
+  }
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, { Allow: 'GET, HEAD' }).end()
+    return
+  }
+  const path = new URL(req.url ?? '/', 'http://localhost').pathname
+
+  let file: string
+  if (path === '/' || path === '/proctor.html') {
+    // In dev the page comes from Vite (hot reload). ?host tells it where this server is,
+    // since the page's own address is then the Vite server's
+    if (devServerUrl) {
+      const host = encodeURIComponent(req.headers.host ?? '')
+      res.writeHead(302, { Location: `${devServerUrl}/proctor.html?host=${host}` }).end()
+      return
+    }
+    if (!staticDir) return notFound()
+    file = joinPath(staticDir, 'proctor.html')
+  } else if (path.startsWith('/assets/') && staticDir) {
+    const assetsDir = resolve(staticDir, 'assets')
+    try {
+      file = resolve(assetsDir, decodeURIComponent(path.slice('/assets/'.length)))
+    } catch {
+      return notFound() // malformed %-escape
+    }
+    // resolve() has already collapsed any ../, so this catches paths that escape assets/
+    if (!file.startsWith(assetsDir + sep)) return notFound()
+  } else {
+    return notFound()
+  }
+
+  let body: Buffer
+  try {
+    body = await readFile(file)
+  } catch {
+    return notFound()
+  }
+  res.writeHead(200, {
+    'Content-Type': CONTENT_TYPES[extname(file)] ?? 'application/octet-stream',
+    'Cache-Control': 'no-cache', // a rebuilt app shouldn't leave the proctor on an old page
+    'X-Content-Type-Options': 'nosniff'
+  })
+  res.end(req.method === 'HEAD' ? undefined : body)
+}
+
+// The address the proctor should type in. Adapter names can't be trusted on Windows: the
+// VirtualBox host-only adapter is literally named "Ethernet". So first ask the OS which address
+// it would send from to reach the outside world, which is the adapter the network actually uses.
+// Only if that fails (no default route at all) fall back to guessing from the adapter list
+export async function lanAddress(): Promise<string> {
   const candidates = Object.entries(networkInterfaces()).flatMap(([name, addresses]) =>
     (addresses ?? [])
       // 169.254.x.x is what Windows gives an adapter with no network: unreachable
       .filter((a) => a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.'))
-      .map((a) => ({ name, address: a.address }))
+      .map((a) => ({ name, address: a.address, mac: a.mac.toLowerCase() }))
   )
-  const real = candidates.filter((c) => !VIRTUAL_ADAPTER.test(c.name))
+  const routed = await defaultRouteAddress()
+  if (routed && candidates.some((c) => c.address === routed)) return routed
+
+  const real = candidates.filter((c) => !VIRTUAL_ADAPTER.test(c.name) && !isVirtualMac(c.mac))
   const best = real.find((c) => PREFERRED_ADAPTER.test(c.name)) ?? real[0] ?? candidates[0]
   return best?.address ?? '127.0.0.1'
+}
+
+// Connecting a UDP socket sends nothing over the network; it only makes the OS choose the
+// outgoing adapter, whose address socket.address() then reports. Null when there's no route
+function defaultRouteAddress(): Promise<string | null> {
+  return new Promise((resolve) => {
+    const socket = createSocket('udp4')
+    let settled = false
+    const done = (address: string | null): void => {
+      if (settled) return
+      settled = true
+      socket.close()
+      resolve(address)
+    }
+    socket.once('error', () => done(null))
+    try {
+      socket.connect(53, '8.8.8.8', () => {
+        try {
+          done(socket.address().address)
+        } catch {
+          done(null)
+        }
+      })
+    } catch {
+      done(null)
+    }
+  })
+}
+
+// For the fallback only. Virtual adapters that Docker Desktop, WSL, VMs and VPNs add to Windows,
+// by name and by the MAC prefixes those products assign (names alone miss VirtualBox)
+const VIRTUAL_ADAPTER = /vethernet|wsl|docker|virtualbox|vmware|hyper-v|vpn|tailscale|zerotier|bluetooth/i
+const VIRTUAL_MAC_PREFIXES = ['0a:00:27', '08:00:27', '00:15:5d', '00:50:56', '00:0c:29', '00:05:69', '00:1c:14', '02:42']
+const PREFERRED_ADAPTER = /wi-?fi|wlan|wireless|ethernet|^en\d|^eth\d|^wl/i
+
+function isVirtualMac(mac: string): boolean {
+  return VIRTUAL_MAC_PREFIXES.some((prefix) => mac.startsWith(prefix))
 }
