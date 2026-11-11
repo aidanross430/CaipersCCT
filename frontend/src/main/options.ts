@@ -97,6 +97,7 @@ async function readJson(path: string): Promise<{ value?: unknown; error?: string
 
 const DESIGN_KEYS = [
   'totalCards',
+  'numRounds',
   'gainAmounts',
   'lossAmounts',
   'lossCardCounts',
@@ -112,6 +113,7 @@ export function validateDesignConfig(value: unknown): string[] {
     value
 
   if (!isInt(totalCards) || totalCards < 2) problems.push(`totalCards must be a whole number of at least 2 (got ${show(totalCards)})`)
+  if (!isInt(numRounds) || numRounds < 1) problems.push(`numRounds must be a whole number of at least 1 (got ${show(numRounds)})`)
   problems.push(...positiveList('gainAmounts', gainAmounts))
   problems.push(...positiveList('lossAmounts', lossAmounts))
 

@@ -104,7 +104,7 @@ export function buildRoundConfigs(config: DesignConfig, seed: number): RoundConf
     // Build the conditon array that is indexed with loss cards placed.
     // Each block gets its own array
     const blocks = Array.from({ length: NUM_BLOCKS }, (_, blockIndex) => {
-      const rounds = shuffle(conditions, rng).map((condition, i) => ({
+      const rounds = shuffle(conditions, rng).map((condition) => ({
         roundIndex: 0, // temp value before blocks are joined in this functions return
         blockIndex,
         isPractice: false,
