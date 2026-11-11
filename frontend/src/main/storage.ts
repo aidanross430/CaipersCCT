@@ -70,13 +70,13 @@ function buildRoundsCsv(session: SessionFile, rounds: RoundResponse[]): string {
     // Builds out the csv header
     const header = [
         'participantId', 'roundIndex', 'blockIndex', 'block', 'roundType', 'gainAmount', 'lossAmount',
-        'numberLossCards', 'lossOnFlipNum', 'endReason',
+        'numberLossCards', 'fillerLossPositions', 'riggedLossFlip', 'actualLossFlip', 'endReason',
         'gainCardsFlipped', 'roundScore', 'trialScore'
     ]
 
     const rows = rounds.map((r) => [
         session.participantId, r.roundIndex, r.blockIndex, r.block, r.roundType, r.gainAmount, r.lossAmount,
-        r.numberLossCards, r.lossOnFlipNum, r.endReason,
+        r.numberLossCards, r.fillerLossPositions.join(' '), r.riggedLossFlip, r.actualLossFlip, r.endReason,
         r.gainCardsFlipped, r.roundScore, r.trialScore
     ])
 

@@ -27,8 +27,8 @@ export type RoundConfig = {
     lossAmount: number              // how many points are each loss card worth?
     numberLossCards: number         // how many loss cards are in this round?
     totalCards: number               // The number of cards in this round
-    lossPositions: number[]         // Filler rounds only: where are the loss cards? (empty when rigged)
-    lossOnFlipNum: number | null    // Rigged rounds only: which flip is the loss on? (null for filler)
+    fillerLossPositions: number[]         // Filler rounds only: where are the loss cards? (empty when rigged)
+    riggedLossFlip: number | null    // Rigged rounds only: which flip is the loss on? (null for filler)
     roundType: 'rigged' | 'filler'  // rigged: loss decided by flip # (analysed). filler: real loss positions, not analysed
 }
 
@@ -49,10 +49,11 @@ export type RoundEndReason = 'stopped' | 'loss' | 'allGainsRevealed'
 // Each line of rounds.jsonl is one of these, so it carries the round's design alongside the
 // outcome: a session that ends early still has everything needed to analyse its rounds
 export type RoundResponse = Pick<RoundConfig,
-    'roundIndex' | 'blockIndex' | 'roundType' | 'gainAmount' | 'lossAmount' | 'numberLossCards' | 'lossOnFlipNum'> & {
+    'roundIndex' | 'blockIndex' | 'roundType' | 'gainAmount' | 'lossAmount' | 'numberLossCards' | 'fillerLossPositions' | 'riggedLossFlip'> & {
     block: Block               // Was this round played in the solo or advised block?
     flips: CardFlip[]          // The set of flip data
     endReason: RoundEndReason  // Why did the round end?
+    actualLossFlip: number | null  // The flip the participant actually lost on (both round types); null if they never hit a loss
     gainCardsFlipped: number   // How many gain cards were flipped?
     trialScore: number         // What is the trials score at the end of this round?
     roundScore: number          // The score gained or lost during this specific round

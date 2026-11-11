@@ -17,8 +17,8 @@ const session: SessionFile = {
       lossAmount: 250,
       numberLossCards: 1,
       totalCards: 32,
-      lossPositions: [5],
-      lossOnFlipNum: null,
+      fillerLossPositions: [5],
+      riggedLossFlip: null,
       roundType: 'filler'
     }
   ],
@@ -58,7 +58,9 @@ const round: RoundResponse = {
   gainAmount: 10,
   lossAmount: 250,
   numberLossCards: 1,
-  lossOnFlipNum: null,
+  fillerLossPositions: [5],
+  riggedLossFlip: null,
+  actualLossFlip: null,
   flips: [],
   endReason: 'stopped',
   gainCardsFlipped: 0,

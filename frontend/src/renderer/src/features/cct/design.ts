@@ -73,16 +73,20 @@ export function placeLossCards(numberLossCards: number, totalCards: number, rng:
 // }
 
 // All rounds EXCEPT filler rounds should be rigged. A rigged round has no fixed loss positions:
-// whichever card is turned on flip lossOnFlipNum is the loss, and every other card is a gain
-export function assignRigging(rounds: RoundConfig[]): RoundConfig[] {
-  return rounds.map((round) => ({
-    ...round,
-    roundType: 'rigged',
-    // The loss lands on the last possible flip, right after every gain card has been turned,
-    // so a participant can take all (totalCards - numberLossCards) gain cards before losing
-    lossOnFlipNum: round.totalCards - round.numberLossCards + 1,
-    lossPositions: []
-  }))
+// whichever card is turned on flip riggedLossFlip is the loss, and every other card is a gain.
+// The loss flip is picked at random from the last riggedLossCardWindow flips it could fall on
+export function assignRigging(rounds: RoundConfig[], config: DesignConfig, rng: () => number): RoundConfig[] {
+  return rounds.map((round) => {
+    // The latest flip a loss can be on: right after all (totalCards - numberLossCards) gain cards
+    const lastPossibleFlip = round.totalCards - round.numberLossCards + 1
+    return {
+      ...round,
+      roundType: 'rigged',
+      // one of lastPossibleFlip - (riggedLossCardWindow - 1) ... lastPossibleFlip, each equally likely
+      riggedLossFlip: lastPossibleFlip - Math.floor(rng() * config.riggedLossCardWindow),
+      fillerLossPositions: []
+    }
+  })
 }
 
 // Creates numFillerRoundsPerBlock non-rigged filler rounds for one block and disperses them
@@ -107,8 +111,8 @@ export function buildFillerRounds(
       lossAmount: pick(config.lossAmounts),
       numberLossCards,
       totalCards: config.totalCards,
-      lossPositions: placeLossCards(numberLossCards, config.totalCards, rng),
-      lossOnFlipNum: null,
+      fillerLossPositions: placeLossCards(numberLossCards, config.totalCards, rng),
+      riggedLossFlip: null,
       roundType: 'filler'
     }
   })
@@ -136,11 +140,11 @@ export function buildRoundConfigs(config: DesignConfig, seed: number): RoundConf
         blockIndex,
         ...condition,
         totalCards: config.totalCards,
-        lossPositions: [], // rigged rounds don't use loss positions; assignRigging sets the loss flip
-        lossOnFlipNum: null,
+        fillerLossPositions: [], // rigged rounds don't use loss positions; assignRigging sets the loss flip
+        riggedLossFlip: null,
         roundType: 'rigged'
       }))
-      return buildFillerRounds(config, assignRigging(rounds), blockIndex, rng)
+      return buildFillerRounds(config, assignRigging(rounds, config, rng), blockIndex, rng)
     })
 
     return blocks.flat().map((round, i) => ({

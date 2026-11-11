@@ -28,13 +28,13 @@ export function startRound(config: RoundConfig, now: number): RoundState {
 
 // Determines whether the card flipped was a gain or a loss
 export function resolveFlip(config: RoundConfig, cardPosition: number, flipsSoFar: number): 'gain' | 'loss' {
-    // Rigged rounds ignore card positions: the loss is whichever card is turned on lossOnFlipNum
+    // Rigged rounds ignore card positions: the loss is whichever card is turned on riggedLossFlip
     if (config.roundType === 'rigged') {
         // return loss if this card is rigged to be a loss
-        return flipsSoFar+1 === config.lossOnFlipNum ? 'loss' : 'gain'
+        return flipsSoFar+1 === config.riggedLossFlip ? 'loss' : 'gain'
     }
     // Check the card position against the Round's loss positions
-    return config.lossPositions.includes(cardPosition) ? 'loss' : 'gain'
+    return config.fillerLossPositions.includes(cardPosition) ? 'loss' : 'gain'
 }
 
 // Processes everything that happened when a user flips over a card
@@ -114,7 +114,9 @@ export function toRoundResponse(state: RoundState, trialScoreBefore: number, blo
         gainAmount: config.gainAmount,
         lossAmount: config.lossAmount,
         numberLossCards: config.numberLossCards,
-        lossOnFlipNum: config.lossOnFlipNum,
+        fillerLossPositions: config.fillerLossPositions,
+        riggedLossFlip: config.riggedLossFlip,
+        actualLossFlip: state.flips.find((f) => f.outcome === 'loss')?.flipIndex ?? null,
         flips: state.flips,
         endReason: state.endReason,
         gainCardsFlipped,

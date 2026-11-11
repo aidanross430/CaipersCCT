@@ -11,20 +11,21 @@ const config: RoundConfig = {
   lossAmount: 250,
   numberLossCards: 1,
   totalCards: 32,
-  lossPositions: [7],
-  lossOnFlipNum: null,
+  fillerLossPositions: [7],
+  riggedLossFlip: null,
   roundType: 'filler'
 }
 
 // The design fields a RoundResponse copies from its round's config
-const design = (roundIndex: number): Omit<RoundResponse, 'block' | 'flips' | 'endReason' | 'gainCardsFlipped' | 'trialScore' | 'roundScore'> => ({
+const design = (roundIndex: number): Omit<RoundResponse, 'block' | 'flips' | 'endReason' | 'actualLossFlip' | 'gainCardsFlipped' | 'trialScore' | 'roundScore'> => ({
   roundIndex,
   blockIndex: config.blockIndex,
   roundType: config.roundType,
   gainAmount: config.gainAmount,
   lossAmount: config.lossAmount,
   numberLossCards: config.numberLossCards,
-  lossOnFlipNum: config.lossOnFlipNum
+  fillerLossPositions: config.fillerLossPositions,
+  riggedLossFlip: config.riggedLossFlip
 })
 
 const session: SessionData = {
@@ -33,8 +34,8 @@ const session: SessionData = {
   block: 'advised',
   roundConfigs: [config, config, config, config],
   roundResponses: [
-    { ...design(0), block: 'solo', flips: [], endReason: 'stopped', gainCardsFlipped: 3, trialScore: 30, roundScore: 30 },
-    { ...design(1), block: 'solo', flips: [], endReason: 'loss', gainCardsFlipped: 1, trialScore: -210, roundScore: -240 }
+    { ...design(0), block: 'solo', flips: [], endReason: 'stopped', actualLossFlip: null, gainCardsFlipped: 3, trialScore: 30, roundScore: 30 },
+    { ...design(1), block: 'solo', flips: [], endReason: 'loss', actualLossFlip: 2, gainCardsFlipped: 1, trialScore: -210, roundScore: -240 }
   ]
 }
 
@@ -58,7 +59,7 @@ describe('buildView', () => {
     })
     // What actually goes over IPC and the network is the JSON
     const json = JSON.stringify(view)
-    for (const key of ['lossPositions', 'rigged', 'lossOnFlipNum', 'lastEventAt']) {
+    for (const key of ['fillerLossPositions', 'rigged', 'riggedLossFlip', 'lastEventAt']) {
       expect(json).not.toContain(key)
     }
     expect(view.round?.flips).toHaveLength(1)

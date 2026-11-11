@@ -12,8 +12,8 @@ const config: RoundConfig = {
   lossAmount: 250,
   numberLossCards: 1,
   totalCards: 32,
-  lossPositions: [31],
-  lossOnFlipNum: null,
+  fillerLossPositions: [31],
+  riggedLossFlip: null,
   roundType: 'filler'
 }
 

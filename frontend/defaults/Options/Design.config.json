@@ -4,5 +4,6 @@
     "lossAmounts": [250, 500, 750],
     "lossCardCounts": [1, 2, 3],
     "repititionsPerConditionPerBlock": 1,
-    "numFillerRoundsPerBlock": 5
+    "numFillerRoundsPerBlock": 5,
+    "riggedLossCardWindow": 5
 }

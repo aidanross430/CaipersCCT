@@ -51,6 +51,7 @@ export type DesignConfig = {
   repititionsPerConditionPerBlock: number
   // practiceRounds: Omit<RoundConfig, 'roundIndex'>[]   // listed explicitly, not generated
   numFillerRoundsPerBlock: number
+riggedLossCardWindow: number         // rigged rounds put the loss on one of the last N flips it could fall on (1 = always the last)
 }
 
 

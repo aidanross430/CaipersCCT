@@ -101,15 +101,23 @@ const DESIGN_KEYS = [
   'lossAmounts',
   'lossCardCounts',
   'repititionsPerConditionPerBlock',
-  'numFillerRoundsPerBlock'
+  'numFillerRoundsPerBlock',
+  'riggedLossCardWindow'
 ]
 
 export function validateDesignConfig(value: unknown): string[] {
   if (!isObject(value)) return ['must be a JSON object, { ... }']
   const problems = unknownKeys(value, DESIGN_KEYS)
 
-  const { totalCards, gainAmounts, lossAmounts, lossCardCounts, repititionsPerConditionPerBlock, numFillerRoundsPerBlock } =
-    value
+  const {
+    totalCards,
+    gainAmounts,
+    lossAmounts,
+    lossCardCounts,
+    repititionsPerConditionPerBlock,
+    numFillerRoundsPerBlock,
+    riggedLossCardWindow
+  } = value
 
   if (!isInt(totalCards) || totalCards < 2) problems.push(`totalCards must be a whole number of at least 2 (got ${show(totalCards)})`)
   problems.push(...positiveList('gainAmounts', gainAmounts))
@@ -129,6 +137,17 @@ export function validateDesignConfig(value: unknown): string[] {
 
   if (!isInt(numFillerRoundsPerBlock) || numFillerRoundsPerBlock < 0) {
     problems.push(`numFillerRoundsPerBlock must be an integer, 0 or greater. (got ${show(numFillerRoundsPerBlock)})`)
+  }
+
+  // The window can't reach back past flip 1. The tightest round is the one with the most loss
+  // cards: its loss can fall on flips 1 to (totalCards - mostLossCards + 1)
+  if (!isInt(riggedLossCardWindow) || riggedLossCardWindow < 1) {
+    problems.push(`riggedLossCardWindow must be a whole number of at least 1 (got ${show(riggedLossCardWindow)})`)
+  } else if (countProblems.length === 0 && isInt(totalCards)) {
+    const maxWindow = totalCards - Math.max(...(lossCardCounts as number[])) + 1
+    if (riggedLossCardWindow > maxWindow) {
+      problems.push(`riggedLossCardWindow can be at most ${maxWindow} with ${totalCards} cards and up to ${Math.max(...(lossCardCounts as number[]))} loss cards (got ${riggedLossCardWindow})`)
+    }
   }
 
   return problems

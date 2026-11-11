@@ -228,9 +228,9 @@ describe('buildRoundConfig', () => {
         lossAmount: expect.any(Number),
         numberLossCards: expect.any(Number),
         totalCards: TEST_DESIGN.totalCards,
-        lossPositions: expect.any(Array),
+        fillerLossPositions: expect.any(Array),
         rigged: false,
-        lossOnFlipNum: null
+        riggedLossFlip: null
       })
     }
   })
