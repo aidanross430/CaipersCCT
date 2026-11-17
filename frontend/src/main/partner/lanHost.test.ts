@@ -5,6 +5,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { createLanHost, type LanHost, type LanHostOptions } from './lanHost'
 import type { PartnerStatus } from '../../shared/partner/link'
+import { isRoomCode } from '../../shared/partner/relay'
 import { PROTOCOL_VERSION, type ProctorView, type ToParticipant, type ToProctor } from '../../shared/partner/protocol'
 
 // These run a real server on port 0 (any free port) and connect real `ws` clients to
@@ -97,13 +98,13 @@ async function pairWith(
   return proctor
 }
 
-const otherCode = (code: string): string => (code === '0000' ? '0001' : '0000')
+const otherCode = (code: string): string => (code === '222222' ? '333333' : '222222')
 
 describe('createLanHost', () => {
   describe('startup', () => {
-    it('reports waiting with a join url and a 4-digit code once listening', async () => {
+    it('reports waiting with a join url and a 6-character room code once listening', async () => {
       const { join } = await start()
-      expect(join.code).toMatch(/^\d{4}$/)
+      expect(isRoomCode(join.code)).toBe(true)
       expect(join.url).toMatch(/^http:\/\/[\d.]+:\d+$/)
     })
 

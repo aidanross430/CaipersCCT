@@ -8,6 +8,7 @@ import {
   type ToParticipant,
   type ToProctor
 } from './protocol'
+import { isRoomCode, ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH } from './relay'
 import { fail, isInt, isObject, ok, parseMessage, show, unknownKey, type ParseResult } from '../check'
 
 // Used by the participant side (main) on everything the proctor sends. Each accepted message
@@ -25,8 +26,10 @@ export function parseToParticipant(raw: string): ParseResult<ToParticipant> {
       // host's call, so it can answer with a 'rejected' that says why
       if (!isInt(msg.version))
         return fail(`handshake version must be a whole number (got ${show(msg.version)})`)
-      if (typeof msg.code !== 'string' || !/^\d+$/.test(msg.code)) {
-        return fail(`handshake code must be digits (got ${show(msg.code)})`)
+      if (!isRoomCode(msg.code)) {
+        return fail(
+          `handshake code must be ${ROOM_CODE_LENGTH} characters from ${ROOM_CODE_ALPHABET} (got ${show(msg.code)})`
+        )
       }
       return ok({ type: 'handshake', version: msg.version, code: msg.code })
     }

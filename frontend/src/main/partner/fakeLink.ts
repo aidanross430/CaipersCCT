@@ -22,7 +22,7 @@ export function createFakeLink(): ParticipantLink {
   const emitMessage = (message: ToParticipant): void => messageListeners.forEach((cb) => cb(message))
 
   // Deferred so main has subscribed before the first status goes out
-  later(0, () => emitStatus({ state: 'waiting', join: { url: 'fake://proctor', code: '0000' } }))
+  later(0, () => emitStatus({ state: 'waiting', join: { url: 'fake://proctor', code: 'FAKE22' } }))
   later(1000, () => {
     connected = true
     emitStatus({ state: 'connected' })

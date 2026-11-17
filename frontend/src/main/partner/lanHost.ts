@@ -3,7 +3,6 @@
 // changes. Runs in main only (Node), so it can use `ws`, `http`, `os` and `crypto`.
 import { createServer, type IncomingMessage, type ServerResponse } from 'http'
 import type { AddressInfo } from 'net'
-import { randomInt } from 'crypto'
 import { networkInterfaces } from 'os'
 import { createSocket } from 'dgram'
 import { readFile } from 'fs/promises'
@@ -22,6 +21,7 @@ import {
   type ToProctor
 } from '../../shared/partner/protocol'
 import { parseToParticipant } from '../../shared/partner/validate'
+import { generateRoomCode } from './roomCode'
 
 export type LanHostOptions = {
   port: number                      // fixed (e.g. 47800) so the firewall rule and the proctor's
@@ -57,7 +57,7 @@ export function createLanHost(options: LanHostOptions): LanHost {
   } = options
 
   // New each time the app starts
-  const code = String(randomInt(0, 10_000)).padStart(4, '0')    // the random 'room' code
+  const code = generateRoomCode()                               // the random 'room' code
   const messageListeners = new Set<(message: ToParticipant) => void>()
   const statusListeners = new Set<(status: PartnerStatus) => void>()
   const handshakeTimers = new Set<ReturnType<typeof setTimeout>>()

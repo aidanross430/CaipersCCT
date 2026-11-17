@@ -2,7 +2,7 @@
 // ToProctor / ToParticipant message from protocol.ts travels inside a 'data' frame as an opaque
 // string, so the relay never parses (or depends on) the app protocol.
 // Shared by main (participant), the proctor client and relay/, so no Node or DOM imports here.
-import { type ParseResult } from '../check'
+import { fail, isInt, ok, parseMessage, show, unknownKey, type ParseResult } from '../check'
 //
 //   participant app          relay                 proctor app
 //        |-- hello ------------>|                        |
@@ -84,32 +84,112 @@ export type FromRelay =
   | { type: 'peer'; state: 'joined' | 'left' }                  // whether the partner joined or left
   | { type: 'data'; payload: string }                           // a protocol.ts message from your partner (contains live view/messages)
 
-// parseToRelay: used by relay/ on every incoming frame.
+// parseToRelay: used by relay/ on every incoming frame. Each accepted frame is rebuilt field by
+// field, as in validate.ts, so nothing unchecked rides along to the other member
 export function parseToRelay(raw: string): ParseResult<ToRelay> {
-  // TODO:
-  //   1. JSON.parse; must be an object with a string `type`
-  //   2. 'hello': keys type, relayVersion, role, room, token, plus claim for a participant
-  //        (a proctor hello with a claim is refused, like any unknown key)
-  //        relayVersion an integer (whether it's the *right* one is the relay's call, so it can
-  //        answer 'version-mismatch'); role 'participant' | 'proctor'; room passes isRoomCode;
-  //        token a non-empty string; claim a string of at least MIN_CLAIM_LENGTH
-  //   3. 'data': exactly type, payload; payload a string. Not parsed further: that's
-  //        parseToParticipant / parseToProctor's job at the far end
-  //   4. anything else: fail
-  //   Rebuild accepted frames field by field, as validate.ts does
-  void raw
-  return { ok: false, problem: 'parseToRelay is not implemented yet' }
+  const parsed = parseMessage(raw)
+  if (!parsed.ok) return parsed
+  const msg = parsed.message
+
+  switch (msg.type) {
+    case 'hello': {
+      // Role first, since it decides which keys are allowed: only a participant sends a claim
+      if (msg.role !== 'participant' && msg.role !== 'proctor') {
+        return fail(`hello role must be "participant" or "proctor" (got ${show(msg.role)})`)
+      }
+      const keys = ['type', 'relayVersion', 'role', 'room', 'token']
+      const extra = unknownKey(msg, msg.role === 'participant' ? [...keys, 'claim'] : keys)
+      if (extra) return fail(extra)
+
+      // Only the shape is checked here: whether the version is the right one is the relay's
+      // call, so it can answer 'version-mismatch' rather than a generic 'bad-hello'
+      if (!isInt(msg.relayVersion)) {
+        return fail(`hello relayVersion must be a whole number (got ${show(msg.relayVersion)})`)
+      }
+      if (!isRoomCode(msg.room)) {
+        return fail(
+          `hello room must be ${ROOM_CODE_LENGTH} characters from ${ROOM_CODE_ALPHABET} (got ${show(msg.room)})`
+        )
+      }
+      // Never echoed in the problem: a near-miss token shouldn't end up in a log
+      if (typeof msg.token !== 'string' || msg.token === '') {
+        return fail('hello token must be non-empty text')
+      }
+      const base = { type: 'hello', relayVersion: msg.relayVersion, room: msg.room, token: msg.token } as const
+
+      if (msg.role === 'proctor') return ok({ ...base, role: 'proctor' })
+      // Not echoed either: the claim is what lets a socket take over a room
+      if (typeof msg.claim !== 'string' || msg.claim.length < MIN_CLAIM_LENGTH) {
+        return fail(`hello claim must be text of at least ${MIN_CLAIM_LENGTH} characters`)
+      }
+      return ok({ ...base, role: 'participant', claim: msg.claim })
+    }
+    case 'data':
+      return parseData(msg)
+    default:
+      return fail(`unknown frame type ${show(msg.type)}`)
+  }
 }
 
-// parseFromRelay: used by relayClient.ts (both roles) on every frame from the relay.
+// parseFromRelay: used by relayClient.ts (both roles) on every frame from the relay
 export function parseFromRelay(raw: string): ParseResult<FromRelay> {
-  // TODO:
-  //   'ready'   peerPresent boolean
-  //   'refused' reason one of RefusedReason (a Record<RefusedReason, true> like PHASES in
-  //             validate.ts, so adding a reason without listing it is a compile error);
-  //             detail a string
-  //   'peer'    state 'joined' | 'left'
-  //   'data'    payload a string
-  void raw
-  return { ok: false, problem: 'parseFromRelay is not implemented yet' }
+  const parsed = parseMessage(raw)
+  if (!parsed.ok) return parsed
+  const msg = parsed.message
+
+  switch (msg.type) {
+    case 'ready': {
+      const extra = unknownKey(msg, ['type', 'peerPresent'])
+      if (extra) return fail(extra)
+      if (typeof msg.peerPresent !== 'boolean') {
+        return fail(`ready peerPresent must be true or false (got ${show(msg.peerPresent)})`)
+      }
+      return ok({ type: 'ready', peerPresent: msg.peerPresent })
+    }
+    case 'refused': {
+      const extra = unknownKey(msg, ['type', 'reason', 'detail'])
+      if (extra) return fail(extra)
+      if (typeof msg.reason !== 'string' || !Object.hasOwn(REFUSED_REASONS, msg.reason)) {
+        return fail(`refused reason is not a known reason (got ${show(msg.reason)})`)
+      }
+      if (typeof msg.detail !== 'string') {
+        return fail(`refused detail must be text (got ${show(msg.detail)})`)
+      }
+      return ok({ type: 'refused', reason: msg.reason as RefusedReason, detail: msg.detail })
+    }
+    case 'peer': {
+      const extra = unknownKey(msg, ['type', 'state'])
+      if (extra) return fail(extra)
+      if (msg.state !== 'joined' && msg.state !== 'left') {
+        return fail(`peer state must be "joined" or "left" (got ${show(msg.state)})`)
+      }
+      return ok({ type: 'peer', state: msg.state })
+    }
+    case 'data':
+      return parseData(msg)
+    default:
+      return fail(`unknown frame type ${show(msg.type)}`)
+  }
+}
+
+// Typed as Record<RefusedReason, true> so adding a reason without listing it here is a compile error
+const REFUSED_REASONS = {
+  'bad-hello': true,
+  'version-mismatch': true,
+  'bad-token': true,
+  'no-such-room': true,
+  'room-taken': true,
+  'too-many-attempts': true,
+  'server-full': true
+} satisfies Record<RefusedReason, true>
+
+// The same 'data' frame in both directions. The payload is not parsed here: that's
+// parseToParticipant / parseToProctor's job at the far end
+function parseData(msg: Record<string, unknown>): ParseResult<{ type: 'data'; payload: string }> {
+  const extra = unknownKey(msg, ['type', 'payload'])
+  if (extra) return fail(extra)
+  if (typeof msg.payload !== 'string') {
+    return fail(`data payload must be text (got ${show(msg.payload)})`)
+  }
+  return ok({ type: 'data', payload: msg.payload })
 }

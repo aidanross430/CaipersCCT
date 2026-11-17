@@ -9,7 +9,7 @@ import { CardFlip, RoundEndReason, Advice, Phase, Block, RoundConfig, ChatMessag
 //   A number bumped whenever the shape of message data changes. This is verified
 //   in the proctor-participent handshake when starting the task to make sure
 //   everything worked.
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 // Character limit on proctor messages to participant
 export const MAX_MESSAGE_LENGTH = 256

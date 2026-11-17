@@ -7,9 +7,9 @@ const send = (value: unknown): string => JSON.stringify(value)
 
 describe('parseToParticipant', () => {
   it('accepts a well-formed handshake, chat and typing message', () => {
-    expect(parseToParticipant(send({ type: 'handshake', version: 1, code: '4821' }))).toEqual({
+    expect(parseToParticipant(send({ type: 'handshake', version: 1, code: '4K8M2X' }))).toEqual({
       ok: true,
-      message: { type: 'handshake', version: 1, code: '4821' }
+      message: { type: 'handshake', version: 1, code: '4K8M2X' }
     })
     expect(parseToParticipant(send({ type: 'chat', text: 'Try 5 flips' }))).toEqual({
       ok: true,
@@ -51,17 +51,19 @@ describe('parseToParticipant', () => {
   })
 
   it('rejects a handshake whose version is not an integer', () => {
-    expect(parseToParticipant(send({ type: 'handshake', version: '1', code: '4821' })).ok).toBe(
+    expect(parseToParticipant(send({ type: 'handshake', version: '1', code: '4K8M2X' })).ok).toBe(
       false
     )
-    expect(parseToParticipant(send({ type: 'handshake', version: 1.5, code: '4821' })).ok).toBe(
+    expect(parseToParticipant(send({ type: 'handshake', version: 1.5, code: '4K8M2X' })).ok).toBe(
       false
     )
   })
 
-  it('rejects a handshake whose code is not digits', () => {
-    expect(parseToParticipant(send({ type: 'handshake', version: 1, code: '48a1' })).ok).toBe(false)
-    expect(parseToParticipant(send({ type: 'handshake', version: 1, code: 4821 })).ok).toBe(false)
+  it('rejects a handshake whose code is not a room code', () => {
+    expect(parseToParticipant(send({ type: 'handshake', version: 1, code: '4K8M2' })).ok).toBe(false) // too short
+    expect(parseToParticipant(send({ type: 'handshake', version: 1, code: '4K8M2O' })).ok).toBe(false) // O not in alphabet
+    expect(parseToParticipant(send({ type: 'handshake', version: 1, code: '4k8m2x' })).ok).toBe(false) // lower case
+    expect(parseToParticipant(send({ type: 'handshake', version: 1, code: 482122 })).ok).toBe(false) // not text
   })
 
   it('rejects chat text that is missing or empty after trimming', () => {
