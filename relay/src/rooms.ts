@@ -45,13 +45,120 @@ export type RoomTable<S> = {
   size: () => number
 }
 
+// the room type
+type Room<S> = {
+  claim: string
+  participant: S | null
+  proctor: S | null
+  createdAt: number
+  participantLeftAt: number | null   // set while the participant slot is empty; null while held
+}
+
 export function createRoomTable<S>(options: RoomTableOptions): RoomTable<S> {
-  // TODO:
-  //   rooms: Map<code, { claim, participant: S | null, proctor: S | null, createdAt,
-  //                      participantLeftAt: number | null }>
-  //   memberOf: Map<S, { room, role }>, so peerOf and leave are O(1)
-  //   Claim comparison here can be plain ===: it's not the access token, and a room is only
-  //   reachable by someone who already passed the token check
-  void options
-  throw new Error('createRoomTable is not implemented yet')
+  const { maxRooms, roomGraceMs, maxRoomAgeMs, now = Date.now } = options
+
+  // Two Maps:
+  // rooms -> contains the code to each room, and contains data about that room
+  //          (like the participant/proctor identities, the room claim, start time, etc.)
+  // memberOf -> maps the individual client sockets to the room so that checking peerOf or
+  //             leave doesn't need to go through every room. (basically its a way to get to
+  //             the room when you only have the participant)
+  const rooms = new Map<string, Room<S>>()
+  const memberOf = new Map<S, { room: string; role: RelayRole }>()
+
+  // seats the socket into the specified role in that room, returning whoever held that role before
+  function seat(code: string, room: Room<S>, role: RelayRole, socket: S): S | null {
+    const previous = room[role]
+    if (previous !== null) memberOf.delete(previous)
+    room[role] = socket
+    memberOf.set(socket, { room: code, role })
+    return previous
+  }
+
+  return {
+    // When participant sends hello:
+    //  create the room if it doesn't exist
+    //  If it does exist and the claims don't match, that room was already taken (incredibly unlikely)
+    enterAsParticipant(code, claim, socket) {
+      const existing = rooms.get(code)
+
+      if (!existing) {
+        if (rooms.size >= maxRooms) return { ok: false, reason: 'server-full' }
+        const room: Room<S> = {
+          claim,
+          participant: null,
+          proctor: null,
+          createdAt: now(),
+          participantLeftAt: null
+        }
+        rooms.set(code, room)
+        seat(code, room, 'participant', socket)
+        return { ok: true, replaced: null, peer: null }
+      }
+
+      if (existing.claim !== claim) return { ok: false, reason: 'room-taken' }
+
+      // Reclaim: after a drop (slot empty) or before the old socket was noticed as dead
+      const replaced = seat(code, existing, 'participant', socket)
+      existing.participantLeftAt = null
+      return { ok: true, replaced, peer: existing.proctor }
+    },
+
+    // Check that the room the proctor is trying to enter exists
+    enterAsProctor(code, socket) {
+      const room = rooms.get(code)
+      if (!room) return { ok: false, reason: 'no-such-room' }
+      // Allowed while the participant is away (grace period): the proctor waits for them
+      const replaced = seat(code, room, 'proctor', socket)
+      return { ok: true, replaced, peer: room.participant }
+    },
+
+    // Returns the partner socket of this socket's room
+    peerOf(socket) {
+      const member = memberOf.get(socket)
+      if (!member) return null
+      const room = rooms.get(member.room)
+      if (!room) return null
+      return member.role === 'participant' ? room.proctor : room.participant
+    },
+
+    // Leave the room this socket is in
+    leave(socket) {
+      const member = memberOf.get(socket)
+      if (!member) return null
+      memberOf.delete(socket)
+
+      const room = rooms.get(member.room)
+      if (!room) return null
+      room[member.role] = null
+      // The room stays open for roomGraceMs so the participant can reclaim it with its claim
+      if (member.role === 'participant') room.participantLeftAt = now()
+
+      const peer = member.role === 'participant' ? room.proctor : room.participant
+      return { room: member.room, role: member.role, peer }
+    },
+
+    // Deletes old rooms
+    sweep() {
+      const at = now()
+      const expired: { room: string; members: S[] }[] = []
+
+      for (const [code, room] of rooms) {
+        const abandoned =
+          room.participantLeftAt !== null && at - room.participantLeftAt >= roomGraceMs
+        const tooOld = at - room.createdAt >= maxRoomAgeMs
+        if (!abandoned && !tooOld) continue
+
+        const members = [room.participant, room.proctor].filter((s): s is S => s !== null)
+        // Out of the index first, so when server.ts closes them their leave() is a non-event
+        // and the other member isn't told 'left' about a room that no longer exists
+        for (const member of members) memberOf.delete(member)
+        rooms.delete(code)
+        expired.push({ room: code, members })
+      }
+      return expired
+    },
+
+    size: () => rooms.size
+  }
 }
