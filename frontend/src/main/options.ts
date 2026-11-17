@@ -22,6 +22,7 @@ import {
   type DesignConfig,
   type Options
 } from '../shared/options'
+import { isInt, isObject, show } from '../shared/check'
 
 // Thrown when Options/ has problems. message lists every problem, one per line
 export class OptionsError extends Error {
@@ -261,19 +262,6 @@ export function validateTemplate(template: string): string[] {
 }
 
 // --- small helpers ---
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-}
-
-function isInt(v: unknown): v is number {
-  return Number.isInteger(v)
-}
-
-// JSON.stringify shows strings in quotes and handles undefined (a missing key)
-function show(v: unknown): string {
-  return v === undefined ? 'nothing' : JSON.stringify(v)
-}
 
 // Unexpected keys are usually typos ("roundRigged"), which would otherwise be silently ignored
 function unknownKeys(obj: Record<string, unknown>, allowed: string[], prefix = ''): string[] {

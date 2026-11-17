@@ -8,10 +8,7 @@ import {
   type ToParticipant,
   type ToProctor
 } from './protocol'
-
-// Problems are returned rather than thrown so the caller can log them as a 'system'
-// ChatMessage and keep the connection, instead of crashing on one bad message
-export type ParseResult<T> = { ok: true; message: T } | { ok: false; problem: string }
+import { fail, isInt, isObject, ok, parseMessage, show, unknownKey, type ParseResult } from '../check'
 
 // Used by the participant side (main) on everything the proctor sends. Each accepted message
 // is rebuilt field by field, so nothing unchecked can ride along into saved data
@@ -108,53 +105,4 @@ function viewProblem(view: unknown): string | null {
     return `view.upcoming must be an object or null (got ${show(view.upcoming)})`
   if (!Array.isArray(view.chat)) return `view.chat must be a list (got ${show(view.chat)})`
   return null
-}
-
-// --- small helpers ---
-
-// Every message is a JSON object with a string `type`; the per-type checks start from there
-function parseMessage(raw: string): ParseResult<Record<string, unknown>> {
-  let value: unknown
-  try {
-    value = JSON.parse(raw)
-  } catch {
-    return fail('message is not valid JSON')
-  }
-  if (!isObject(value)) return fail(`message must be an object (got ${show(value)})`)
-  if (typeof value.type !== 'string')
-    return fail(`message type must be text (got ${show(value.type)})`)
-  return ok(value)
-}
-
-function ok<T>(message: T): ParseResult<T> {
-  return { ok: true, message }
-}
-
-function fail(problem: string): { ok: false; problem: string } {
-  return { ok: false, problem }
-}
-
-// The isObject, isInt and show helpers are copies of the ones in main/options.ts.
-// TODO: move them to a shared file and import them in both places
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-}
-
-function isInt(v: unknown): v is number {
-  return Number.isInteger(v)
-}
-
-// JSON.stringify shows strings in quotes and handles undefined (a missing key). Cut short so
-// a huge bad message can't flood the log
-function show(v: unknown): string {
-  if (v === undefined) return 'nothing'
-  const text = JSON.stringify(v)
-  return text.length > 80 ? `${text.slice(0, 80)}...` : text
-}
-
-// The first key that isn't allowed, or null. Extra keys mean the two ends disagree on the
-// protocol, which is worth hearing about rather than silently ignoring
-function unknownKey(obj: Record<string, unknown>, allowed: string[]): string | null {
-  const key = Object.keys(obj).find((k) => !allowed.includes(k))
-  return key === undefined ? null : `${show(obj.type)} message has an unknown field "${key}"`
 }
