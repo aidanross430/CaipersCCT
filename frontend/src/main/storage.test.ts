@@ -8,7 +8,7 @@ import { appendMessage, appendRound, checkWritable, createSession, finishSession
 
 const session: SessionFile = {
   participantId: 'P001',
-  trialConfig: { designSeed: 1, partnerType: 'ai' },
+  trialConfig: { designSeed: 1, perceivedPartner: 'ai', actualPartner: 'llm' },
   roundConfigs: [
     {
       roundIndex: 0,
@@ -28,18 +28,19 @@ const session: SessionFile = {
   options: {
     design: {
       totalCards: 32,
-      numRounds: 1,
       gainAmounts: [10],
       lossAmounts: [250],
       lossCardCounts: [1],
-      repititionsPerCondition: 1,
-      rigging: { roundsRigged: 0 }
+      repititionsPerConditionPerBlock: 1,
+      numFillerRoundsPerBlock: 0,
+      riggedLossCardWindow: 1
     },
     chat: {
       riskyFlips: 7,
       safeFlips: 7,
       adviceCondition: 'risky',
-      displayCondition: 'ai',
+      perceivedPartner: 'ai',
+      actualPartner: 'llm',
       personas: { human: { name: 'Pat', avatar: 'P' }, ai: { name: 'AI', avatar: 'AI' } },
       greeting: 'hi',
       readDelayMs: [0, 0],

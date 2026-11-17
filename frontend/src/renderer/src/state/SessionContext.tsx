@@ -50,7 +50,8 @@ export function SessionProvider({ children }: {children: ReactNode}) {
         const trialConfig = {
             ...initialSession.trialConfig,
             designSeed: seed,
-            partnerType: options.chat.displayCondition
+            perceivedPartner: options.chat.perceivedPartner,
+            actualPartner: options.chat.actualPartner
         }
 
         try {

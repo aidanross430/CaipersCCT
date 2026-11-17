@@ -18,7 +18,8 @@ export type ReplyDeps = {
 export type ReplyInput = {
   upcomingRound: RoundConfig                  // the round the break comes before
   adviceCondition: AdviceCondition
-  partnerType: TrialConfig['partnerType']
+  perceivedPartner: TrialConfig['perceivedPartner']
+  actualPartner: TrialConfig['actualPartner']
   persona: Persona
   totalScoreBefore: number
   history: ChatMessage[]                      // includes the message just sent
@@ -54,6 +55,22 @@ export async function requestPartnerReply(deps: ReplyDeps, input: ReplyInput): P
       source: 'llm'
       // + model, latencyMs, promptVersion: PROMPT_VERSION, tokens once ChatMessage has those fields
     }
+  }
+}
+
+// This is the human-partner condition equivalent to the above requestPartnerReply
+// This one handles human replies and the above method handles llm replies
+export function toProctorMessage(
+  text: string, upcomingRound: RoundConfig, adviceCondition: AdviceCondition, chat: ChatConfig
+): ChatMessage {
+  return {
+    sender: 'advice_giver',
+    text,
+    sentAt: new Date().toISOString(),
+    roundIndex: upcomingRound.roundIndex,
+    // the advice the proctor was shown, so messages.csv has the same advice columns as the LLM path
+    advice: getAdvice(upcomingRound, adviceCondition, chat),
+    source: 'student'
   }
 }
 

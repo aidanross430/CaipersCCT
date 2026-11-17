@@ -15,8 +15,9 @@ export type SessionFile = SessionStartPayload & {
 
 
 export type TrialConfig = {
-    designSeed: number                      // The rng seed for the design
-    partnerType: 'human' | 'ai'     // Is the participant talking to the LLM or a real person?
+    designSeed: number                  // The rng seed for the design
+    perceivedPartner: 'human' | 'ai'    // Who do we tell the participant they are talking to?
+    actualPartner: 'student' | 'llm'    // Who is the participant actually talking to
 }
 
 // The settings for each round, determining number of loss cards and each card's point worth
@@ -94,6 +95,6 @@ export type ChatMessage = {
     sentAt: string
     roundIndex: number                      // the round the break was before (chat only happens between rounds)
     advice?: Advice                        // The advice provided for this response.
-    source?: 'llm' | 'fallback'             // Partner messages only: who wrote the text
+    source?: 'llm' | 'student' | 'fallback'  // Partner messages only: who wrote the text
     error?: string                          // System records only: why the partner couldn't reply
 }

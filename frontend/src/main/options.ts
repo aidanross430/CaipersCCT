@@ -14,6 +14,7 @@ import { join } from 'path'
 import {
   ADVICE_CONDITIONS,
   DISPLAY_CONDITIONS,
+  PARTNER_CONDITIONS,
   CONFIG_FILES,
   PROMPT_FILES,
   PROMPT_PLACEHOLDERS,
@@ -157,7 +158,8 @@ const CHAT_KEYS = [
   'riskyFlips',
   'safeFlips',
   'adviceCondition',
-  'displayCondition',
+  'perceivedPartner',
+  'actualPartner',
   'personas',
   'greeting',
   'readDelayMs',
@@ -167,15 +169,30 @@ const CHAT_KEYS = [
 export function validateChatConfig(value: unknown): string[] {
   if (!isObject(value)) return ['must be a JSON object, { ... }']
   const problems = unknownKeys(value, CHAT_KEYS)
-  const { riskyFlips, safeFlips, adviceCondition, displayCondition, personas, greeting, readDelayMs, typingDelayMs } = value
+  const {
+    riskyFlips,
+    safeFlips,
+    adviceCondition,
+    perceivedPartner,
+    actualPartner,
+    personas,
+    greeting,
+    readDelayMs,
+    typingDelayMs
+  } = value
 
   if (!isInt(riskyFlips) || riskyFlips < 0) problems.push(`riskyFlips must be a whole number of 0 or more (got ${show(riskyFlips)})`)
   if (!isInt(safeFlips) || safeFlips < 0) problems.push(`safeFlips must be a whole number of 0 or more (got ${show(safeFlips)})`)
   if (!ADVICE_CONDITIONS.includes(adviceCondition as never)) {
     problems.push(`adviceCondition must be one of ${ADVICE_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(adviceCondition)})`)
   }
-  if (!DISPLAY_CONDITIONS.includes(displayCondition as never)) {
-    problems.push(`displayCondition must be one of ${DISPLAY_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(displayCondition)})`)
+  // Who participants are told they're chatting with, and who actually replies. Independent,
+  // so any combination is allowed
+  if (!DISPLAY_CONDITIONS.includes(perceivedPartner as never)) {
+    problems.push(`perceivedPartner must be one of ${DISPLAY_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(perceivedPartner)})`)
+  }
+  if (!PARTNER_CONDITIONS.includes(actualPartner as never)) {
+    problems.push(`actualPartner must be one of ${PARTNER_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(actualPartner)})`)
   }
 
   if (!isObject(personas)) {

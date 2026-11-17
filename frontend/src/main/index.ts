@@ -206,12 +206,11 @@ app.whenReady().then(async () => {
     await queue.run(sessionId, () => appendMessage(dir, message))
   })
 
-  // For the human partner (proctor) condition
-  // TODO: gate on a partnerSource option ('llm' | 'proctor') once Chat.config.json has one.
-  // displayCondition is what participants are *told*, so it can't decide this for real
+  // For the student partner condition. Gated on actualPartner (who really replies), never on
+  // perceivedPartner (who participants are told they're chatting with)
   // CCT_FAKE_PROCTOR=1 swaps in the stand-in proctor (fakeLink.ts), for UI work without a browser
   let link: ParticipantLink | null = null
-  if (options.chat.displayCondition === 'human') {
+  if (options.chat.actualPartner === 'student') {
     link =
       process.env.CCT_FAKE_PROCTOR === '1'
         ? createFakeLink()

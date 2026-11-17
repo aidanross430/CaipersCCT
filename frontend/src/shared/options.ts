@@ -39,8 +39,11 @@ export type PromptPlaceholder = (typeof PROMPT_PLACEHOLDERS)[number]
 // Every advice condition, for checking Chat.config.json at runtime
 export const ADVICE_CONDITIONS = ['risky', 'optimal', 'safe'] as const satisfies readonly AdviceCondition[]
 
-// Every display condition: Are participants talking to an AI or Human
-export const DISPLAY_CONDITIONS = ['human', 'ai'] as const satisfies readonly TrialConfig['partnerType'][]
+// Every display condition: Do participants think they are talking to an AI or Human
+export const DISPLAY_CONDITIONS = ['human', 'ai'] as const satisfies readonly TrialConfig['perceivedPartner'][]
+
+// The actual partner condition: Who are participants actually talking to?
+export const PARTNER_CONDITIONS = ['student', 'llm'] as const satisfies readonly TrialConfig['actualPartner'][]
 
 // The configuration across the entire trial
 export type DesignConfig = {
@@ -56,7 +59,7 @@ riggedLossCardWindow: number         // rigged rounds put the loss on one of the
 
 
 // How the chat partner is shown to the participant. Which one is used comes from
-// trialConfig.partnerType
+// trialConfig.perceivedPartner
 export type Persona = {
     name: string
     avatar: string      // short text shown in the round avatar
@@ -67,7 +70,8 @@ export type ChatConfig = {
     riskyFlips: number,
     safeFlips: number,
     adviceCondition: AdviceCondition            // which advice policy the partner follows
-    displayCondition: TrialConfig['partnerType']  // "human" or "ai": who participants are told they're chatting with
+    perceivedPartner: TrialConfig['perceivedPartner']  // "human" or "ai": who participants are told they're chatting with
+    actualPartner: TrialConfig['actualPartner']
     personas: Record<'human' | 'ai', Persona>
     greeting: string                            // first message shown in the chat
     readDelayMs: [number, number]               // "is typing..." appears after a random delay in this range, as if reading the message first

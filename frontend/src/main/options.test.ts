@@ -117,7 +117,8 @@ describe('validateChatConfig', () => {
     riskyFlips: 7,
     safeFlips: 7,
     adviceCondition: 'risky',
-    displayCondition: 'ai',
+    perceivedPartner: 'ai',
+    actualPartner: 'llm',
     personas: { human: { name: 'Pat', avatar: 'P' }, ai: { name: 'Claude', avatar: 'AI' } },
     greeting: 'hi',
     readDelayMs: [600, 1500],
@@ -128,9 +129,30 @@ describe('validateChatConfig', () => {
     expect(validateChatConfig(valid)).toEqual([])
   })
 
-  it('rejects an unknown display condition', () => {
-    expect(validateChatConfig({ ...valid, displayCondition: 'Human' })).toContainEqual(
-      expect.stringContaining('displayCondition must be one of "human", "ai"')
+  it('accepts every perceived x actual partner combination', () => {
+    for (const perceivedPartner of ['human', 'ai']) {
+      for (const actualPartner of ['student', 'llm']) {
+        expect(validateChatConfig({ ...valid, perceivedPartner, actualPartner })).toEqual([])
+      }
+    }
+  })
+
+  it('rejects an unknown perceived partner', () => {
+    expect(validateChatConfig({ ...valid, perceivedPartner: 'Human' })).toContainEqual(
+      expect.stringContaining('perceivedPartner must be one of "human", "ai"')
+    )
+  })
+
+  it('rejects an unknown actual partner', () => {
+    expect(validateChatConfig({ ...valid, actualPartner: 'human' })).toContainEqual(
+      expect.stringContaining('actualPartner must be one of "student", "llm"')
+    )
+  })
+
+  it('rejects the old displayCondition setting', () => {
+    // An Options/ folder from before the split still has it: reported as an unknown setting
+    expect(validateChatConfig({ ...valid, displayCondition: 'ai' })).toContainEqual(
+      expect.stringContaining('displayCondition')
     )
   })
 
