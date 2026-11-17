@@ -41,12 +41,12 @@ describe('loadOptions', () => {
 
   it('restores a single missing file without touching the others', async () => {
     await cp(DEFAULTS, optionsDir, { recursive: true })
-    const edited = (await readFile(join(optionsDir, 'style.md'), 'utf8')) + '\nEdited by a researcher.'
-    await writeFile(join(optionsDir, 'style.md'), edited)
+    const edited = (await readFile(join(optionsDir, 'style.ai.md'), 'utf8')) + '\nEdited by a researcher.'
+    await writeFile(join(optionsDir, 'style.ai.md'), edited)
     await rm(join(optionsDir, 'rules.md'))
 
     const options = await loadOptions(optionsDir, DEFAULTS)
-    expect(options.prompts.style).toBe(edited) // kept
+    expect(options.prompts.styleAi).toBe(edited) // kept
     expect(options.prompts.rules).toBe(await readFile(join(DEFAULTS, 'rules.md'), 'utf8')) // restored
   })
 
@@ -60,13 +60,30 @@ describe('loadOptions', () => {
     await cp(DEFAULTS, optionsDir, { recursive: true })
     const chat = JSON.parse(await readFile(join(optionsDir, CONFIG_FILES.chat), 'utf8'))
     await writeFile(join(optionsDir, CONFIG_FILES.chat), JSON.stringify({ ...chat, readDelayMs: [900, 100] }))
-    await writeFile(join(optionsDir, 'style.md'), 'Write like {{partnrName}}')
+    await writeFile(join(optionsDir, 'style.human.md'), 'Write like {{partnrName}}')
 
     const error = await loadOptions(optionsDir, DEFAULTS).catch((e: unknown) => e)
     expect(error).toBeInstanceOf(OptionsError)
     const problems = (error as OptionsError).problems
     expect(problems.some((p) => p.startsWith('Chat.config.json: readDelayMs'))).toBe(true)
-    expect(problems.some((p) => p.startsWith('style.md: uses {{partnrName}}'))).toBe(true)
+    expect(problems.some((p) => p.startsWith('style.human.md: uses {{partnrName}}'))).toBe(true)
+  })
+
+  it('loads both style templates', async () => {
+    const options = await loadOptions(optionsDir, DEFAULTS)
+    expect(options.prompts.styleHuman).toBe(await readFile(join(DEFAULTS, 'style.human.md'), 'utf8'))
+    expect(options.prompts.styleAi).toBe(await readFile(join(DEFAULTS, 'style.ai.md'), 'utf8'))
+  })
+
+  it('refuses to start while an old style.md is still there, so its edits are not ignored', async () => {
+    await cp(DEFAULTS, optionsDir, { recursive: true })
+    await writeFile(join(optionsDir, 'style.md'), 'An edited style from before the split')
+
+    const error = await loadOptions(optionsDir, DEFAULTS).catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(OptionsError)
+    expect((error as OptionsError).problems).toContainEqual(
+      expect.stringMatching(/^style\.md: has been split into style\.human\.md .* and style\.ai\.md/)
+    )
   })
 })
 
@@ -204,7 +221,7 @@ describe('optionsHash', () => {
 
     expect(optionsHash(options)).toBe(optionsHash(structuredClone(options)))
     expect(optionsHash(options)).toMatch(/^[0-9a-f]{12}$/)
-    const edited = { ...options, prompts: { ...options.prompts, style: options.prompts.style + '!' } }
+    const edited = { ...options, prompts: { ...options.prompts, styleHuman: options.prompts.styleHuman + '!' } }
     expect(optionsHash(edited)).not.toBe(optionsHash(options))
   })
 })

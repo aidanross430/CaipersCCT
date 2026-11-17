@@ -4,7 +4,9 @@ import type { AdviceCondition, TrialConfig } from "./types"
 export type Options = {
   design: DesignConfig
   chat: ChatConfig
-  prompts: {  style: string; rules: string; situation: string }
+  // styleHuman / styleAi: the LLM's voice, picked by trialConfig.perceivedPartner (who the
+  // participant is told they're chatting with). Only used when actualPartner is 'llm'
+  prompts: { styleHuman: string; styleAi: string; rules: string; situation: string }
 }
 
 // The files in the Options/ folder. Shared so the loader (main) and anything that reports
@@ -15,7 +17,8 @@ export const CONFIG_FILES = {
 } as const
 
 export const PROMPT_FILES = {
-  style: 'style.md',
+  styleHuman: 'style.human.md',
+  styleAi: 'style.ai.md',
   rules: 'rules.md',
   situation: 'situation.md'
 } as const satisfies Record<keyof Options['prompts'], string>

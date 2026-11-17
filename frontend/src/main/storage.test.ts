@@ -46,7 +46,7 @@ const session: SessionFile = {
       readDelayMs: [0, 0],
       typingDelayMs: [0, 0]
     },
-    prompts: { style: 's', rules: 'r', situation: 's' }
+    prompts: { styleHuman: 'h', styleAi: 'a', rules: 'r', situation: 's' }
   } satisfies Options,
   optionsHash: 'test'
 }

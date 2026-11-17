@@ -1,7 +1,7 @@
 // In charge of constructing the prompt that is given to the AI each time the user
 // sends a message
 
-import type { Advice, ChatMessage, RoundConfig } from '../../../../shared/types'
+import type { Advice, ChatMessage, RoundConfig, TrialConfig } from '../../../../shared/types'
 import type { ChatRequest, ChatTurn } from '../../../../shared/ipc'
 import type { Options, Persona, PromptPlaceholder } from '../../../../shared/options'
 
@@ -13,6 +13,7 @@ const MAX_HISTORY = 20
 
 export type PromptInput = {
     persona: Persona
+    perceivedPartner: TrialConfig['perceivedPartner']  // picks the style template
     advice: Advice
     upcomingRound: RoundConfig      // the round the break comes before
     totalScore: number
@@ -21,7 +22,11 @@ export type PromptInput = {
 }
 
 export function buildPrompt(input: PromptInput): ChatRequest {
-    const { persona, advice, upcomingRound: round, totalScore, history, prompts } = input
+    const { persona, perceivedPartner, advice, upcomingRound: round, totalScore, history, prompts } = input
+
+    // Only the LLM path builds a prompt, so this is the perceived-partner choice for an LLM
+    // partner: sound like a person when participants are told it's a person, like an AI otherwise
+    const style = perceivedPartner === 'human' ? prompts.styleHuman : prompts.styleAi
 
     // Merges the information needed by each prompt with the relevant round information
     // This array needs to include everything the AI should be able to answer
@@ -39,7 +44,7 @@ export function buildPrompt(input: PromptInput): ChatRequest {
         adviceText: adviceText(advice)
     }
 
-    const system = [prompts.style, prompts.rules, prompts.situation]
+    const system = [style, prompts.rules, prompts.situation]
         .map((template) => fillTemplate(template,values))
         .join('\n\n')
 

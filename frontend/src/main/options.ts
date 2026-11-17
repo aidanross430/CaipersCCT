@@ -8,7 +8,7 @@
 //  3. If anything is wrong, loadOptions throws an OptionsError and the app refuses to start
 
 import { constants } from 'fs'
-import { copyFile, mkdir, readFile } from 'fs/promises'
+import { access, copyFile, mkdir, readFile } from 'fs/promises'
 import { createHash } from 'crypto'
 import { join } from 'path'
 import {
@@ -52,6 +52,16 @@ export async function loadOptions(optionsDir: string, defaultsDir: string): Prom
   if (chat.error) report(CONFIG_FILES.chat, [chat.error])
   else report(CONFIG_FILES.chat, validateChatConfig(chat.value))
 
+  // style.md was split in two. Copying in the defaults above won't touch an old style.md, so
+  // without this a researcher's edits to it would be silently ignored in favour of the default
+  // style.ai.md. Refuse to start until they've been moved over
+  if (await exists(join(optionsDir, RETIRED_STYLE_FILE))) {
+    report(RETIRED_STYLE_FILE, [
+      `has been split into ${PROMPT_FILES.styleHuman} (used when participants are told their partner is a person) ` +
+        `and ${PROMPT_FILES.styleAi} (told it's an AI). Move any edits into those files, then delete ${RETIRED_STYLE_FILE}`
+    ])
+  }
+
   const prompts = {} as Options['prompts']
   for (const [key, file] of Object.entries(PROMPT_FILES) as [keyof Options['prompts'], string][]) {
     prompts[key] = await readFile(join(optionsDir, file), 'utf8')
@@ -71,6 +81,18 @@ export async function loadOptions(optionsDir: string, defaultsDir: string): Prom
 // hash ran with identical settings and wording, which makes them easy to group in analysis
 export function optionsHash(options: Options): string {
   return createHash('sha256').update(JSON.stringify(options)).digest('hex').slice(0, 12)
+}
+
+// The single style template from before the perceived-partner split
+const RETIRED_STYLE_FILE = 'style.md'
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function copyIfMissing(from: string, to: string): Promise<void> {
