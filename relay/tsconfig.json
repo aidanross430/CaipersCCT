@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    // The envelope types and checks are shared with the participant app and proctor client.
+    // Only relay.ts and check.ts may be imported from here: they have no other imports, so the
+    // relay never type-checks or bundles the rest of the frontend. esbuild (build.mjs), tsx and
+    // vitest.config.ts all resolve this same alias
+    "paths": {
+      "@shared/*": ["../frontend/src/shared/*"]
+    }
+  },
+  "include": ["src", "build.mjs", "vitest.config.ts"]
+}
