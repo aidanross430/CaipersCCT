@@ -17,14 +17,12 @@ describe('createRelayServer', () => {
     it.todo('refuses a version mismatch')
     it.todo('refuses a malformed first frame as bad-hello')
     it.todo('closes a socket that sends no hello within helloTimeoutMs')
-    it.todo('refuses too-many-attempts after maxFailedHellos from one address')
   })
 
   describe('forwarding', () => {
     it.todo('forwards data frames both ways, byte for byte')
     it.todo('drops data while there is no peer')
     it.todo('closes a socket that sends a second hello')
-    it.todo('closes a socket over maxFramesPerSecond')
     it.todo('refuses frames over MAX_FRAME_BYTES')
   })
 
