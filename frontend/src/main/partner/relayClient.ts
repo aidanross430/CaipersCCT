@@ -32,11 +32,6 @@ export type RelayClientOptions = {
 // The first is short because most drops are Cloud Run's 60-minute cut or a redeploy
 export const RECONNECT_BACKOFF_MS = [1_000, 2_000, 5_000, 10_000] as const
 
-// After 'peer: joined', how long the participant waits for the proctor's handshake before
-// reporting a problem. Same as lanHost's HANDSHAKE_TIMEOUT_MS. The relay can't be asked to drop
-// the proctor, so on timeout the participant just stays unpaired
-export const HANDSHAKE_TIMEOUT_MS = 5_000
-
 // --- transport ---
 
 // What the transport is doing. The links turn this into PartnerStatus
@@ -130,7 +125,7 @@ export function createRelayTransport(options: TransportOptions): RelayTransport 
       if (!closed) afterClose(next)
     })
 
-    // For parsing messages sent from the relay to the participant client
+    // For parsing messages sent to/from the relay
     function handleFrame(raw: string): Next | null {
       const result = parseFromRelay(raw)
       if (!result.ok) {
@@ -157,7 +152,7 @@ export function createRelayTransport(options: TransportOptions): RelayTransport 
       }
     }
 
-    // Handles which retry logic to use when the participant client refuses a frame
+    // Handles which retry logic to use when the relay is refusing a frame from this client
     function onRefused(reason: RefusedReason, detail: string): Next {
       onProblem(`The relay refused this app (${reason}): ${detail}`)
       // Someone else holds this code: new code and claim, try again at once
@@ -205,44 +200,82 @@ export function createRelayTransport(options: TransportOptions): RelayTransport 
   }
 }
 
-// --- participant link (Phase 3) ---
 
 // Same contract as createLanHost: index.ts gets a ParticipantLink and never knows the difference
 export function createParticipantRelayLink(options: RelayClientOptions): ParticipantLink {
-  // TODO: on createRelayTransport({ ...options, role: 'participant' })
-  //
-  // State
-  //   paired: boolean          true only after a valid handshake from the current proctor
-  //   lastView: ProctorView | null, as in lanHost: what a newly paired proctor gets first
-  //
-  // Transport state → PartnerStatus
-  //   ready (not paired)  → 'waiting' { join: { url: options.url, code: room } }. Emitted again
-  //                         whenever the room changes (a room-taken retry), so the Welcome
-  //                         page always shows the code that works
-  //   retrying            → paired = false; 'disconnected' { reason }
-  //   stopped             → 'disconnected' { reason } (says what to fix: token, update, ...)
-  //
-  // Peer events
-  //   joined → paired = false; start the HANDSHAKE_TIMEOUT_MS timer (timeout → onProblem only)
-  //   left   → if paired: paired = false; 'disconnected' 'The proctor disconnected', then
-  //            'waiting' again (same code still works), as lanHost does
-  //
-  // Data from the proctor (parseToParticipant)
-  //   bad → onProblem, ignored
-  //   not paired: only a handshake is accepted
-  //     version !== PROTOCOL_VERSION → send rejected (the proctor client closes itself)
-  //     code !== current room        → send rejected 'Wrong pairing code'
-  //     ok → paired = true; send welcome, then lastView if any; 'connected'
-  //   paired: a repeated handshake changes nothing; chat/typing → onMessage listeners
-  //
-  // send(message)
-  //   'view' → keep as lastView. Sent only while paired (dropped otherwise, as in lanHost)
-  //
-  // Heartbeat
-  //   Every HEARTBEAT_INTERVAL_MS while paired, re-send lastView, as lanHost does, so the
-  //   proctor client sees a live participant even when nothing changes
-  void options
-  throw new Error('createParticipantRelayLink is not implemented yet')
+  const { onProblem = () => {} } = options
+  const transport = createRelayTransport({ ...options, role: 'participant' })
+
+  const messageListeners = new Set<(message: ToParticipant) => void>()
+  const statusListeners = new Set<(status: PartnerStatus) => void>()
+  let room: string | null = null              // from 'ready'; shown on the Welcome page
+  let paired = false                          // the current proctor has handshaken
+  let lastView: ProctorView | null = null     // what a newly paired proctor gets first
+
+  const emit = (s: PartnerStatus): void => statusListeners.forEach((cb) => cb(s))
+  const showWaiting = (): void => {
+    if (room) emit({ state: 'waiting', join: { url: options.url, code: room } })
+  }
+  const sendTo = (m: ToProctor): void => transport.send(JSON.stringify(m))
+
+  // update status according to transport state
+  transport.onState((s) => {
+    if (s.state === 'ready') {
+      room = s.room
+      paired = false
+      showWaiting()
+    } else if (s.state === 'retrying' || s.state === 'stopped') {
+      paired = false
+      emit({ state: 'disconnected', reason: s.reason })
+    }
+  })
+
+  // reactions to peer events (peer joins or exits)
+  transport.onPeer((state) => {
+    if (!paired) return
+    paired = false
+    if (state === 'left') emit({ state: 'disconnected', reason: 'The proctor disconnected' })
+    showWaiting()
+  })
+
+  // handling data sent from the peer
+  transport.onData((payload) => {
+    const result = parseToParticipant(payload)
+    if (!result.ok) return onProblem(`Bad message from the proctor: ${result.problem}`)
+
+    const message = result.message
+    
+    // This block handles the different types of incoming messages
+    if (message.type === 'handshake') {
+      // Skip on an already paired client
+      if (paired) return
+      if (message.version !== PROTOCOL_VERSION) {
+        return sendTo({
+          type: 'rejected',
+          reason: `Proctor and participant client protocol version mismatch. Proctor is using ${message.version}, while this client is using ${PROTOCOL_VERSION}`
+        })
+      }
+      paired = true
+      sendTo({
+        type: 'welcome'
+      })
+      if (lastView) sendTo({ type: 'view', view: lastView })
+        emit({ state: 'connected' })
+        return
+      }
+    // handles message types 'chat' and 'typing'
+    if (paired) messageListeners.forEach((cb) => cb(message))
+  })
+
+  return {
+    send: (message) => {
+      if (message.type === 'view') lastView = message.view
+      if (paired) sendTo(message)       // dropped otherwise: the next view catches them up
+    },
+    onMessage: (cb) => { messageListeners.add(cb); return () => messageListeners.delete(cb) },
+    onStatus: (cb) => { statusListeners.add(cb); return () => statusListeners.delete(cb) },
+    close: () => transport.close()
+  }
 }
 
 // --- proctor link (Phase 4) ---
