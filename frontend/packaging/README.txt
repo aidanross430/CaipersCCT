@@ -2,7 +2,9 @@ CaipersCCT - Columbia Card Task
 ===============================
 
 STARTING THE TASK
-  Double-click CaipersCCT.bat.
+  Double-click the launcher for this participant's condition, for example
+  "Condition A.bat". See CONDITIONS below for which is which. Starting
+  app/CaipersCCT.exe directly won't work: it needs to know the condition.
 
   The first time on a new computer, Windows may show "Windows protected your PC".
   Click "More info", then "Run anyway".
@@ -17,21 +19,38 @@ FOLDERS
   app/       The program itself. Don't move or edit anything in here.
 
 KEEP THIS FOLDER TOGETHER
-  CaipersCCT.bat, Options/, Output/ and app/ must stay in the same folder. Put the
+  The Condition launchers, Options/, Output/ and app/ must stay in the same folder. Put the
   folder somewhere the task can write to (for example the desktop), not inside
   C:\Program Files, and not in a cloud-synced folder unless your protocol allows it.
 
-SETTING THE CONDITIONS
-  Both conditions are set in Options/Chat.config.json, and apply to every session started
-  from this folder until they're changed. Close CaipersCCT, edit the file, start it again.
+CONDITIONS
+  Each launcher runs one condition. The names are letters on purpose, so a participant
+  who sees this folder can't tell what they mean. Keep this key away from participants.
 
-    "displayCondition": "ai"       the participant is told they're chatting with an AI
-    "displayCondition": "human"    the participant is told they're chatting with a person
+    Launcher           Participant is told          Partner who actually replies
+    Condition A.bat    they're chatting with a person   a student (proctor computer)
+    Condition B.bat    they're chatting with a person   the AI
+    Condition C.bat    they're chatting with an AI      a student (proctor computer)
+    Condition D.bat    they're chatting with an AI      the AI
+
+  The launcher overrides "perceivedPartner" and "actualPartner" in
+  Options/Chat.config.json, so editing those two settings has no effect here. The advice
+  the partner gives is still set in that file, and applies to every condition:
+
     "adviceCondition":  "risky"    which advice the partner gives
 
   Values must be written exactly as shown, in lowercase with the quotes. Each session's
-  session.json records the conditions it ran with. Check the file before every
-  participant if conditions change between participants.
+  session.json records the settings it ran with, including the two the launcher set.
+
+STUDENT PARTNER (CONDITIONS A AND C)
+  The student partner connects through the lab's relay server, so these conditions need
+  an internet connection and two settings:
+    "relayUrl" in Options/Chat.config.json    the relay's address, starting with wss://
+    Options/relay-key.txt                     the relay key (the file explains how)
+  If either is missing, CaipersCCT says so and doesn't start. The Welcome page shows a
+  session code: give it to the student at the proctor computer to connect.
+
+  Treat relay-key.txt as private, like api-key.txt below.
 
 CHAT PARTNER
   The chat needs an internet connection and an Anthropic API key. Paste the key into

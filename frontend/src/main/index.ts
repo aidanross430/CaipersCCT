@@ -10,8 +10,9 @@ import type { ChatRequest } from '../shared/ipc';
 import type { ChatMessage } from '../shared/types';
 import { chatReply, setApiKey } from './llm';
 import { API_KEY_FILE, readApiKey } from './apiKey';
-import { loadOptions, optionsHash, OptionsError } from './options';
-import type { Options } from '../shared/options';
+import { loadOptions, optionsHash, OptionsError, validateChatConfig } from './options';
+import { CONFIG_FILES, type Options } from '../shared/options';
+import { applyCondition, readLaunchCondition } from './launchCondition';
 import { appendMessage } from './storage';
 import type { ParticipantLink, PartnerStatus } from '../shared/partner/link';
 import type { ProctorView } from '../shared/partner/protocol';
@@ -94,6 +95,21 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // Which condition to run, from the launcher (launchCondition.ts). A packaged build must be
+  // started from a launcher; npm run dev may leave it to Chat.config.json
+  const launch = readLaunchCondition(process.argv)
+  if (!launch.ok || (launch.condition === null && app.isPackaged)) {
+    dialog.showErrorBox(
+      'Start CaipersCCT from a condition launcher',
+      `${launch.ok ? 'CaipersCCT was started without a condition.' : launch.problem}\n\n` +
+        'Close this, then double-click one of the launchers in the CaipersCCT folder ' +
+        '(Condition A.bat to Condition D.bat). README.txt says which condition is which.'
+    )
+    app.quit()
+    return
+  }
+  const condition = launch.condition
+
   const dataDir = join(baseDir(), 'Output')
 
   // Refuse to start if session data can't be saved, rather than failing mid-session
@@ -118,6 +134,16 @@ app.whenReady().then(async () => {
   let relayKey: string | null = null
   try {
     options = await loadOptions(optionsDir, defaultsDir())
+    // The launcher's condition replaces Chat.config.json's, before anything is hashed or
+    // recorded. Checked again, since some settings depend on the partner (a student partner
+    // needs relayUrl, which an LLM setup may have left empty)
+    if (condition) {
+      options = applyCondition(options, condition)
+      const problems = validateChatConfig(options.chat)
+      if (problems.length > 0) {
+        throw new OptionsError(problems.map((p) => `${CONFIG_FILES.chat} (Condition ${condition}): ${p}`))
+      }
+    }
     // Read separately from the other options and kept in main only: never sent to the
     // renderer or written to session.json
     apiKey = await readApiKey(optionsDir, defaultsDir())
@@ -127,8 +153,8 @@ app.whenReady().then(async () => {
       relayKey = await readRelayKey(optionsDir, defaultsDir())
       if (!relayKey) {
         throw new OptionsError([
-          `${RELAY_KEY_FILE}: no relay key yet. It's needed because actualPartner is "student" in ` +
-            'Chat.config.json. Paste the key the lab gave you on its own line'
+          `${RELAY_KEY_FILE}: no relay key yet. It's needed because this condition's partner is a ` +
+            'student, who connects through the relay. Paste the key the lab gave you on its own line'
         ])
       }
     }

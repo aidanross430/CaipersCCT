@@ -2,8 +2,9 @@
 // then zips it:
 //
 //   release/CaipersCCT/
-//   ├── CaipersCCT.bat   double-click to start
-//   ├── README.txt       instructions for research assistants
+//   ├── Condition A.bat  double-click to start, one launcher per condition
+//   ├── ...              (A to D, see src/main/launchCondition.ts)
+//   ├── README.txt       instructions for research assistants, including which condition is which
 //   ├── Options/         editable settings (copied from defaults/Options)
 //   ├── Output/          session data is written here
 //   └── app/             CaipersCCT.exe and its runtime files
@@ -39,12 +40,17 @@ await mkdir(outDir, { recursive: true })
 // The app itself goes one level down, so the top of the folder stays tidy
 await cp(unpacked, join(outDir, 'app'), { recursive: true })
 
-// The launcher. %~dp0 is the folder the .bat is in, so it works wherever the folder is
-// copied to. Written here with Windows line endings, which .bat files need
-await writeFile(
-  join(outDir, 'CaipersCCT.bat'),
-  ['@echo off', 'start "" "%~dp0app\\CaipersCCT.exe"', ''].join('\r\n')
-)
+// The launchers, one per condition. The packaged app refuses to start without --condition, so
+// these are the only way in. Neutral names, so a participant who sees the folder can't tell the
+// conditions apart; README.txt has the key. Must match CONDITIONS in src/main/launchCondition.ts.
+// %~dp0 is the folder the .bat is in, so they work wherever the folder is copied to. Written
+// with Windows line endings, which .bat files need
+for (const condition of ['A', 'B', 'C', 'D']) {
+  await writeFile(
+    join(outDir, `Condition ${condition}.bat`),
+    ['@echo off', `start "" "%~dp0app\\CaipersCCT.exe" --condition=${condition}`, ''].join('\r\n')
+  )
+}
 
 await cp(join(root, 'packaging', 'README.txt'), join(outDir, 'README.txt'))
 
