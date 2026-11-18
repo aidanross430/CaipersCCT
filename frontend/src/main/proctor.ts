@@ -18,8 +18,10 @@ import { PROCTOR_IPC, type ProctorSnapshot, type ProctorState } from '../shared/
 import { CONFIG_FILES } from '../shared/options'
 import type { ProctorLink } from '../shared/partner/link'
 import type { ProctorView } from '../shared/partner/protocol'
-import { relayUrlProblem } from '../shared/partner/relay'
+import { ROOM_CODE_LENGTH, isRoomCode, relayUrlProblem } from '../shared/partner/relay'
+import { parseToParticipant } from '../shared/partner/validate'
 import { OptionsError } from './options'
+import { createProctorRelayLink } from './partner/relayClient'
 import { RELAY_KEY_FILE, readRelayKey } from './relayKey'
 
 export type ProctorStartOptions = {
@@ -48,8 +50,6 @@ export async function startProctor({
     app.quit()
     return
   }
-  void relay // TODO: used by the connect handler below
-
   // 2. State, mirrored to the window. The window asks for a snapshot once on load, then listens
   let state: ProctorState = { connection: 'idle', problem: null }
   let view: ProctorView | null = null
@@ -66,22 +66,51 @@ export async function startProctor({
   // 3. IPC
   ipcMain.handle(PROCTOR_IPC.snapshot, (): ProctorSnapshot => ({ state, view }))
 
-  ipcMain.handle(PROCTOR_IPC.connect, async (_event, code: unknown) => {
-    // TODO:
-    //   1. code must be text; trim + upper-case it (the proctor may type "4k8m2x"), then
-    //      isRoomCode, else throw an Error whose message the window shows under the field
-    //   2. close any existing link: typing a new code switches rooms
-    //   3. link = createProctorRelayLink({
-    //        url: relay.url, token: relay.token, room: code,
-    //        onProblem: (p) => console.warn('[proctor]', p),
-    //        onEnded: (reason) => { link = null; view = null; setState({ connection: 'idle', problem: reason }) }
-    //      })
-    //   4. setState({ connection: 'joined', code, status: { state: 'waiting', join: { url: relay.url, code } } })
-    //   5. link.onStatus((status) => setState({ connection: 'joined', code, status }))
-    //      link.onMessage((m) => { if (m.type === 'view') { view = m.view; push(PROCTOR_IPC.view, view) } })
-    //      (welcome and rejected are handled inside the link; they only change its status)
-    void code
-    throw new Error('Connecting is not implemented yet')
+  // Returns null when connecting has started, otherwise why the code was refused. Returned rather
+  // than thrown: Electron wraps a thrown error's message in "Error invoking remote method ...",
+  // which isn't fit to show under the code field
+  ipcMain.handle(PROCTOR_IPC.connect, (_event, typed: unknown): string | null => {
+    // The proctor may type "4k8m2x" or paste " 4K8M2X "
+    const code = typeof typed === 'string' ? typed.trim().toUpperCase() : ''
+    if (!isRoomCode(code)) {
+      return `That isn't a session code. It's ${ROOM_CODE_LENGTH} letters and numbers, shown on the participant's Welcome page`
+    }
+
+    // Typing a new code switches rooms. close() ends the old link quietly (no onEnded)
+    link?.close()
+    view = null
+
+    const current = createProctorRelayLink({
+      url: relay.url,
+      token: relay.token,
+      room: code,
+      onProblem: (problem) => console.warn('[proctor]', problem),
+      // Gave up for good (rejected, wrong key, relay version): back to code entry with the reason
+      onEnded: (reason) => {
+        if (link !== current) return
+        link = null
+        view = null
+        setState({ connection: 'idle', problem: reason })
+      }
+    })
+    link = current
+    setState({
+      connection: 'joined',
+      code,
+      status: { state: 'waiting', join: { url: relay.url, code } }
+    })
+
+    // The `link !== current` checks drop anything a replaced link sends after a switch
+    current.onStatus((status) => {
+      if (link === current) setState({ connection: 'joined', code, status })
+    })
+    current.onMessage((message) => {
+      // welcome and rejected are handled inside the link; only views reach the window
+      if (link !== current || message.type !== 'view') return
+      view = message.view
+      push(PROCTOR_IPC.view, view)
+    })
+    return null
   })
 
   ipcMain.on(PROCTOR_IPC.disconnect, () => {
@@ -92,11 +121,18 @@ export async function startProctor({
   })
 
   ipcMain.on(PROCTOR_IPC.send, (_event, message: unknown) => {
-    // TODO: the window is trusted less than main, so check the shape before it goes out:
-    //   chat with text of 1..MAX_MESSAGE_LENGTH characters, or typing with a boolean isTyping.
-    //   e.g. parseToParticipant(JSON.stringify(message)) and refuse 'handshake' (the link's job).
-    //   Then link?.send(checked); the link drops it unless connected
-    void message
+    // The window is trusted less than main, so check the message before it goes out, with the
+    // same check the participant app runs on arrival (it trims chat text and enforces
+    // MAX_MESSAGE_LENGTH). A problem here is a bug in the window, so it's only logged
+    const result = parseToParticipant(JSON.stringify(message ?? null))
+    if (!result.ok) {
+      console.warn('[proctor] Refused a message from the window:', result.problem)
+      return
+    }
+    // The handshake is the link's job, never the window's
+    if (result.message.type === 'handshake') return
+    // Dropped by the link unless connected
+    link?.send(result.message)
   })
 
   app.on('before-quit', () => link?.close())

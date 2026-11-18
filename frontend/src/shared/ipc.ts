@@ -80,7 +80,7 @@ export type ProctorState =
 export type ProctorSnapshot = { state: ProctorState; view: ProctorView | null }
 
 export type ProctorApi = {
-    connect: (code: string) => Promise<void>    // rejects if the code isn't a room code
+    connect: (code: string) => Promise<string | null>  // null: connecting; otherwise why the code was refused
     disconnect: () => void
     send: (message: PartnerMessage) => void     // dropped by the link unless connected
     onState: (cb: (state: ProctorState) => void) => () => void
