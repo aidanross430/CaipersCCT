@@ -16,7 +16,7 @@ import { HEARTBEAT_INTERVAL_MS, MISSED_HEARTBEATS_BEFORE_DISCONNECT, type Partic
 import { PROTOCOL_VERSION, type ProctorView, type ToParticipant, type ToProctor } from '../../shared/partner/protocol'
 import { MAX_FRAME_BYTES, MAX_ROOM_CODE_ATTEMPTS, RELAY_VERSION, parseFromRelay,
   type RefusedReason, type ToRelay } from '../../shared/partner/relay'
-import { parseToParticipant } from '../../shared/partner/validate'
+import { parseToParticipant, parseToProctor } from '../../shared/partner/validate'
 import { generateClaim, generateRoomCode } from './roomCode'
 
 
@@ -291,37 +291,105 @@ export type ProctorRelayLinkOptions = RelayClientOptions & {
 // The proctor side: the mirror image of createParticipantRelayLink. It asks (handshake); the
 // participant answers (welcome / rejected)
 export function createProctorRelayLink(options: ProctorRelayLinkOptions): ProctorLink {
-  // TODO: on createRelayTransport({ ...options, role: 'proctor', room: options.room })
-  //
-  // State
-  //   paired: boolean     true after 'welcome' from the current participant socket
-  //   ended: boolean      after onEnded: ignore everything, never call it twice
-  //
-  // Handshake: sent whenever a participant socket may be there and we're not paired
-  //   ready with peerPresent      → send handshake { type: 'handshake', version: PROTOCOL_VERSION, code: room }
-  //   peer joined                 → paired = false; send handshake (a new participant socket,
-  //                                 e.g. the participant app reconnected)
-  //   (code is still required by validate.ts, though the relay already matched the room)
-  //
-  // Transport state → PartnerStatus
-  //   ready      → 'waiting' { join: { url: options.url, code: room } } until 'welcome'
-  //   retrying   → paired = false; 'disconnected' { reason }
-  //   stopped    → end(reason)
-  //   no-such-room is a retry (the transport backs off): the participant may not have opened
-  //   the app yet, so the proctor keeps waiting rather than being sent back to code entry
-  //
-  // Peer left → if paired: paired = false; 'disconnected' 'The participant disconnected', then
-  //   'waiting' (the room stays open for them; they reclaim it with their claim)
-  //
-  // Data from the participant (parseToProctor; bad → onProblem, ignored)
-  //   welcome   → paired = true; 'connected'
-  //   rejected  → end(reason): the participant refused (protocol version), retrying won't help
-  //   view      → onMessage listeners (only while paired)
-  //
-  // end(reason): ended = true; transport.close(); 'disconnected' { reason }; onEnded?.(reason)
-  //
-  // send(message)  chat / typing → transport.send(JSON.stringify(message)) only while paired
-  // close()        transport.close(); no onEnded (the proctor chose to leave)
-  void options
-  throw new Error('createProctorRelayLink is not implemented yet')
+  const { room, onProblem = () => {}, onEnded = () => {} } = options
+  const transport = createRelayTransport({ ...options, role: 'proctor', room })
+
+  const messageListeners = new Set<(message: ToProctor) => void>()
+  const statusListeners = new Set<(status: PartnerStatus) => void>()
+  let paired = false      // 'welcome' received from the current participant socket
+  let ended = false       // gave up for good (end) or closed: ignore everything after
+
+  const emit = (s: PartnerStatus): void => {
+    if (!ended) statusListeners.forEach((cb) => cb(s))
+  }
+  const showWaiting = (): void => emit({ state: 'waiting', join: { url: options.url, code: room } })
+  const sendTo = (m: ToParticipant): void => transport.send(JSON.stringify(m))
+  // The code is still required by validate.ts, though the relay already matched the room
+  const handshake = (): void => sendTo({ type: 'handshake', version: PROTOCOL_VERSION, code: room })
+
+  // Gives up for good: the reason goes to the status and to main, which returns to code entry
+  const end = (reason: string): void => {
+    if (ended) return
+    emit({ state: 'disconnected', reason })
+    ended = true
+    paired = false
+    transport.close()
+    onEnded(reason)
+  }
+
+  // update status according to transport state
+  transport.onState((s) => {
+    if (ended) return
+    if (s.state === 'ready') {
+      paired = false
+      showWaiting()
+      // A participant socket is already in the room: ask now. Otherwise wait for 'peer joined'
+      if (s.peerPresent) handshake()
+    } else if (s.state === 'retrying') {
+      // Includes no-such-room: the participant may not have opened the app yet, so keep
+      // trying rather than going back to code entry
+      paired = false
+      emit({ state: 'disconnected', reason: s.reason })
+    } else if (s.state === 'stopped') {
+      end(s.reason) // bad key, relay version: retrying can't help
+    }
+  })
+
+  // reactions to peer events (participant joins or exits)
+  transport.onPeer((state) => {
+    if (ended) return
+    if (state === 'joined') {
+      // A new participant socket (e.g. their app reconnected): it hasn't welcomed us yet
+      if (paired) {
+        paired = false
+        showWaiting()
+      }
+      handshake()
+      return
+    }
+    if (!paired) return
+    paired = false
+    emit({ state: 'disconnected', reason: 'The participant disconnected' })
+    // The room stays open for them; they reclaim it with their claim
+    showWaiting()
+  })
+
+  // handling data sent from the participant
+  transport.onData((payload) => {
+    if (ended) return
+    const result = parseToProctor(payload)
+    if (!result.ok) return onProblem(`Bad message from the participant: ${result.problem}`)
+
+    const message = result.message
+    switch (message.type) {
+      case 'welcome':
+        if (paired) return
+        paired = true
+        emit({ state: 'connected' })
+        return
+      case 'rejected':
+        // The participant refused (protocol version): retrying would only be refused again
+        onProblem(`The participant app refused this proctor: ${message.reason}`)
+        end(message.reason)
+        return
+      case 'view':
+        if (paired) messageListeners.forEach((cb) => cb(message))
+        return
+    }
+  })
+
+  return {
+    send: (message) => {
+      // Chat and typing only; the handshake is this link's job
+      if (paired && message.type !== 'handshake') sendTo(message)
+    },
+    onMessage: (cb) => { messageListeners.add(cb); return () => messageListeners.delete(cb) },
+    onStatus: (cb) => { statusListeners.add(cb); return () => statusListeners.delete(cb) },
+    close: () => {
+      // The proctor chose to leave: no onEnded, and no status after this
+      ended = true
+      paired = false
+      transport.close()
+    }
+  }
 }
