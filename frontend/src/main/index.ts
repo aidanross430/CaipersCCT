@@ -16,10 +16,11 @@ import { appendMessage } from './storage';
 import type { ParticipantLink, PartnerStatus } from '../shared/partner/link';
 import type { ProctorView } from '../shared/partner/protocol';
 import { createFakeLink } from './partner/fakeLink';
-import { createLanHost } from './partner/lanHost';
+import { createParticipantRelayLink } from './partner/relayClient';
+import { RELAY_KEY_FILE, readRelayKey } from './relayKey';
 
-// Fixed, so the firewall rule and the proctor's bookmark stay the same between sessions
-const PARTNER_PORT = 47800
+// CCT_FAKE_PROCTOR=1 swaps in the stand-in proctor (fakeLink.ts), for UI work without a relay
+const FAKE_PROCTOR = process.env.CCT_FAKE_PROCTOR === '1'
 
 // Sessions created during this run of the app: id -> folder path.
 // The renderer can only refer to sessions that main created.
@@ -114,11 +115,23 @@ app.whenReady().then(async () => {
   const optionsDir = join(baseDir(), 'Options')
   let options: Options
   let apiKey: string | null
+  let relayKey: string | null = null
   try {
     options = await loadOptions(optionsDir, defaultsDir())
     // Read separately from the other options and kept in main only: never sent to the
     // renderer or written to session.json
     apiKey = await readApiKey(optionsDir, defaultsDir())
+    // Only a student partner goes through the relay. Without the key the proctor can never
+    // connect, so it's treated like any other broken setting rather than a warning
+    if (options.chat.actualPartner === 'student' && !FAKE_PROCTOR) {
+      relayKey = await readRelayKey(optionsDir, defaultsDir())
+      if (!relayKey) {
+        throw new OptionsError([
+          `${RELAY_KEY_FILE}: no relay key yet. It's needed because actualPartner is "student" in ` +
+            'Chat.config.json. Paste the key the lab gave you on its own line'
+        ])
+      }
+    }
   } catch (err) {
     const details =
       err instanceof OptionsError
@@ -207,25 +220,21 @@ app.whenReady().then(async () => {
   })
 
   // For the student partner condition. Gated on actualPartner (who really replies), never on
-  // perceivedPartner (who participants are told they're chatting with)
-  // CCT_FAKE_PROCTOR=1 swaps in the stand-in proctor (fakeLink.ts), for UI work without a browser
+  // perceivedPartner (who participants are told they're chatting with). The proctor reaches
+  // this app through the hosted relay; relayUrl and relayKey were checked at startup above
   let link: ParticipantLink | null = null
   if (options.chat.actualPartner === 'student') {
     link =
-      process.env.CCT_FAKE_PROCTOR === '1'
+      FAKE_PROCTOR
         ? createFakeLink()
-        : createLanHost({
-            port: PARTNER_PORT,
-            // out/renderer, next to out/main, in both `npm start` and the packaged app
-            staticDir: join(__dirname, '../renderer'),
-            devServerUrl: is.dev ? process.env['ELECTRON_RENDERER_URL'] : undefined,
+        : createParticipantRelayLink({
+            url: options.chat.relayUrl ?? '',
+            token: relayKey ?? '',
             onProblem: (problem) => console.warn('[partner]', problem)
           })
   }
   // Kept so a renderer that loads after a status change can still ask for it
   let partnerStatus: PartnerStatus | null = null
-  // TODO: remove once the Welcome page shows the join url and code
-  link?.onStatus((status) => console.log('[partner]', status))
 
   // Sent to every window: there's only one, but on macOS it can be closed and reopened
   const push = (channel: string, value: unknown): void => {

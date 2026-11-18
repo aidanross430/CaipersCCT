@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type JSX } from 'react'
 import { useSession } from '../state/SessionContext'
+import SessionCode from '../features/partner/SessionCode'
 
 // Instructions for the hot CCT, plus the participant ID field that starts the session
 export default function WelcomePage(): JSX.Element {
@@ -41,6 +42,7 @@ export default function WelcomePage(): JSX.Element {
       </p>
 
       <form className="actions" onSubmit={handleSubmit}>
+        <SessionCode />
         <label className="pid-field">
           Participant ID
           <input

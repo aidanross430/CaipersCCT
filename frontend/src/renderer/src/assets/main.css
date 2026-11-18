@@ -150,6 +150,34 @@ button {
   font-size: 16px;
   min-width: 220px;
 }
+/* The student-partner session code, at the left of the actions row. Same label style as the
+   participant ID field, so the row reads as one set of controls */
+.session-code {
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.session-code .code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+}
+.session-code .state {
+  font-weight: 500;
+}
+.session-code .state.ok {
+  color: var(--gain);
+}
+.session-code .state.bad {
+  color: var(--loss);
+  max-width: 420px;
+}
 
 /* ---------- Task ---------- */
 .trial {
