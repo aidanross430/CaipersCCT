@@ -21,7 +21,7 @@ export type ChatAction =
     | { type: 'PARTNER_MESSAGE'; message: ChatMessage } // For human condition replies
     | { type: 'PARTNER_TYPING'; isTyping: boolean } // for human condition partner typing visual
     | { type: 'REPLY'; message: ChatMessage }   // partner responds to the message
-    | { type: 'CANCEL_REPLY' }                  // drop a reply that's out of date or arrived after the break
+    | { type: 'CANCEL_REPLY' }                  // drop a reply that's out of date or arrived after the round
     | { type: 'REPLY_FAILED'; error: string }   // If the LLM fails to send a response
     | { type: 'TYPING_START' }                  // the read delay is over: show "is typing..."
 

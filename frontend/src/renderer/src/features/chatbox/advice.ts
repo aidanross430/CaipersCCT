@@ -23,7 +23,7 @@ function riskyTotalFlips(round: RoundConfig, riskyFlips: number): number {
 
 // TODO: add safe and optimal conditions (might just move that logic into getAdvice)
 
-// Advice is given on the break before a round, so it depends only on that round's settings
+// Advice is given during a round and depends only on that round's settings, not the cards turned
 export function getAdvice(config: RoundConfig, condition: AdviceCondition, settings: AdviceSettings): Advice {
     // TODO: add safe and optimal conditions.
     return {

@@ -3,8 +3,8 @@ import { MAX_MESSAGE_LENGTH } from '../../../shared/partner/protocol'
 import type { ChatMessage } from '../../../shared/types'
 
 type ProctorChatProps = {
-  messages: ChatMessage[] // this break's messages, from the view: the participant app is the writer
-  open: boolean // only on the break in the advised block, as for the participant
+  messages: ChatMessage[] // this round's messages, from the view: the participant app is the writer
+  open: boolean // during a round in the advised block, until it ends, as for the participant
   connected: boolean // messages are dropped by the link otherwise
   onSend: (text: string) => void
   onTyping: (isTyping: boolean) => void
@@ -82,8 +82,8 @@ export default function ProctorChat({
         {shown.length === 0 && (
           <p className="typing-status">
             {open
-              ? 'No messages on this break yet.'
-              : 'The chat opens on the break in the advised block.'}
+              ? 'No messages this round yet.'
+              : 'The chat opens during rounds in the advised block.'}
           </p>
         )}
         {shown.map((m, i) =>

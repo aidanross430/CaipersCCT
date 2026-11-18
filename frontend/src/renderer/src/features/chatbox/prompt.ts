@@ -11,18 +11,26 @@ import type { Options, Persona, PromptPlaceholder } from '../../../../shared/opt
 // Stops the entire session's chat history from accumulating in the prompt.
 const MAX_HISTORY = 20
 
+// Where the participant is in the round being played, when they sent their message. The chat
+// is open mid-round, so the partner should know how far they've got, whatever the advice is
+export type RoundProgress = {
+    cardsTurned: number             // cards turned over so far this round
+    roundScore: number              // points this round so far
+}
+
 export type PromptInput = {
     persona: Persona
     perceivedPartner: TrialConfig['perceivedPartner']  // picks the style template
     advice: Advice
-    upcomingRound: RoundConfig      // the round the break comes before
-    totalScore: number
+    round: RoundConfig              // the round being played
+    totalScore: number              // total from earlier rounds
+    progress: RoundProgress
     history: ChatMessage[]
     prompts: Options['prompts']     // the templates from Options/
 }
 
 export function buildPrompt(input: PromptInput): ChatRequest {
-    const { persona, perceivedPartner, advice, upcomingRound: round, totalScore, history, prompts } = input
+    const { persona, perceivedPartner, advice, round, totalScore, progress, history, prompts } = input
 
     // Only the LLM path builds a prompt, so this is the perceived-partner choice for an LLM
     // partner: sound like a person when participants are told it's a person, like an AI otherwise
@@ -40,6 +48,8 @@ export function buildPrompt(input: PromptInput): ChatRequest {
         numberLossCards: round.numberLossCards,
         totalCards: round.totalCards,
         totalScore: totalScore,
+        cardsTurned: progress.cardsTurned,
+        roundScore: progress.roundScore,
         suggestedTotalFlips: advice.suggestedTotalFlips,
         adviceText: adviceText(advice)
     }
@@ -68,11 +78,11 @@ function fillTemplate(template: string, values: Record<string, string | number>)
 
 // The advice as an instruction to the model
 function adviceText(advice: Advice): string {
-  return `tell them to go for about ${advice.suggestedTotalFlips} cards next round`
+  return `tell them to go for about ${advice.suggestedTotalFlips} cards in total this round`
 }
 
 // Converts the chat history into a format useable by the LLM
-// Only this break's messages are sent. Each round has new cards, point values and
+// Only this round's messages are sent. Each round has new cards, point values and
 // advice, so earlier rounds' numbers would only tempt the model to compare or "correct"
 // itself; leaving them out also keeps every round's advice delivered the same way
 function toTurns(history: ChatMessage[], roundIndex: number): ChatTurn[] {

@@ -23,9 +23,15 @@ export default function SessionScreen({
   onDisconnect
 }: SessionScreenProps): JSX.Element {
   const connected = status.state === 'connected'
-  // Same rule as the participant's screen: the chat is only on the break, in the advised block
+  // Same rule as the participant's screen: the chat is open during a round in the advised block,
+  // until the round ends (the participant's panel stays visible after that, but can't send)
   const chatOpen =
-    view !== null && view.phase === 'task' && view.betweenRounds && view.block === 'advised'
+    view !== null &&
+    view.phase === 'task' &&
+    !view.betweenRounds &&
+    view.block === 'advised' &&
+    view.round !== null &&
+    !view.round.roundEnded
 
   return (
     <main className="trial proctor">
@@ -108,11 +114,6 @@ function Activity({ view }: { view: ProctorView }): JSX.Element {
       return <p className="proctor-note">The participant has finished the task.</p>
     case 'task':
       if (!view.betweenRounds) return <LiveRound round={view.round} />
-      return (
-        <p className="proctor-note">
-          The participant is on the break before the next round
-          {view.block === 'advised' ? ': the chat is open.' : '.'}
-        </p>
-      )
+      return <p className="proctor-note">The participant is on the break before the next round.</p>
   }
 }

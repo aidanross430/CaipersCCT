@@ -32,13 +32,14 @@ export type LiveRound = {
 //   Everything the proctor page shows, sent whole on every change (see ToProctor). Roughly:
 //     phase, block                           where the participant is in the task
 //     roundNumber, totalRounds, trialScore   the header numbers
-//     betweenRounds                          true on the break screen (the only time chat is open)
+//     betweenRounds                          true on the break screen between rounds (no chat there)
 //     round: LiveRound | null                the round being played, or the one that just ended
 //     upcoming: { round info, advice } | null
 //                                            on the break: the next round and the Advice for it,
 //                                            computed participant-side so the proctor page needs
 //                                            no Options/ files
-//     chat: ChatMessage[]                    this break's messages, so a reconnect redraws the chat
+//     chat: ChatMessage[]                    this round's messages (the chat is open during a round,
+//                                            advised block only), so a reconnect redraws the chat
 export type ProctorView = {
     phase: Phase
     block: Block

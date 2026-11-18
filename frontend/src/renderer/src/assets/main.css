@@ -245,6 +245,32 @@ button {
 .trial-play .trial-badge {
   align-self: flex-start;
 }
+/* Below the badge: the board, and in the advised block the chat to its right. Takes the rest
+   of the window's height; the board column is the same flex column the page used to be, so
+   the grid still fits itself to the height that's left */
+.trial-play .play-columns {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+.trial-play .play-columns.with-chat {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+}
+.trial-play .play-board {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.trial-play .play-board > * {
+  flex: none;
+}
+/* The chat fills the column's height (instead of its usual fixed 630px); messages scroll */
+.trial-play .play-columns .chat {
+  height: auto;
+  min-height: 0;
+}
 .trial-play .grid-area {
   flex: 1;
   min-height: 0;
@@ -344,14 +370,6 @@ button {
   color: var(--body);
 }
 
-/* Advised block: the chat sits between "Get ready" and the Start round button */
-.between-rounds .chat {
-  width: min(560px, 100%);
-  /* Shrinks on shorter windows so the Start round button stays in view */
-  height: clamp(260px, 100vh - 120px, 480px);
-  margin: 12px 0;
-  text-align: left;
-}
 
 /* ---------- Chat (from the mockup) ---------- */
 .chat {

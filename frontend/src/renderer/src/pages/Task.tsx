@@ -16,9 +16,9 @@ import {
 // The task page. It owns the state of the round being played, so anything else on the page
 // (the chat panel, later) can read the same round the card grid shows
 export default function Task(): JSX.Element | null {
-  const { session, completeRound, finishSession, completeBlock, saveMessage, setLiveTask } = useSession()
-  // The advised block opens on the break screen too, so the chat is available before its first round
-  const [betweenRounds, setBetweenRounds] = useState(session.block === 'advised')
+  const { session, completeRound, finishSession, completeBlock, saveMessage, setLiveTask } =
+    useSession()
+  const [betweenRounds, setBetweenRounds] = useState(false)
 
   // The current round is the first one without a response
   const roundNumber = session.roundResponses.length
@@ -27,21 +27,29 @@ export default function Task(): JSX.Element | null {
   const isLastRound = roundNumber === totalRounds - 1
   const trialScoreBefore = session.roundResponses.at(-1)?.trialScore ?? 0
 
-  // The round being played. The first solo round starts when the page first renders; every
+  // The round being played. A block's first round starts when the page first renders; every
   // other round starts when the participant leaves the break screen before it
   const [round, setRound] = useState<RoundState | null>(() =>
-    config && !betweenRounds ? startRound(config, performance.now()) : null
+    config ? startRound(config, performance.now()) : null
   )
 
-  // The chat lives here (not on the break screen) so the conversation state carries over
-  // between rounds. Hooks have to run before the early returns below
+  // The chat sits beside the cards during a round, in the advised block only, and starts empty
+  // each round. It's open from the round's first card until the participant leaves it (Next
+  // round / Stop): once the round has ended the panel stays visible but can't send. On the
+  // break screen it gets no round, so a reply still pending is discarded instead of saved.
+  // `round` still holds the finished round for a moment after it's recorded, so it's matched
+  // against config. Hooks have to run before the early returns below
+  const chatRound =
+    session.block === 'advised' &&
+    !betweenRounds &&
+    config &&
+    round?.config.roundIndex === config.roundIndex
+      ? config
+      : null
   const { chat: chatConfig, prompts } = useOptions()
   const persona = chatConfig.personas[session.trialConfig.perceivedPartner]
   const chat = useChat({
-    // On the break screen the chat is about the upcoming round. While a round is played the
-    // chat is hidden and gets no round, so a reply still pending when the round starts is
-    // discarded instead of saved
-    upcomingRound: betweenRounds ? (config ?? null) : null,
+    round: chatRound,
     adviceCondition: chatConfig.adviceCondition,
     chat: chatConfig,
     prompts,
@@ -49,6 +57,11 @@ export default function Task(): JSX.Element | null {
     actualPartner: session.trialConfig.actualPartner,
     persona,
     totalScoreBefore: trialScoreBefore,
+    // Read when a message is sent, so the partner sees the board as it was at that moment
+    progress: {
+      cardsTurned: chatRound ? (round?.flips.length ?? 0) : 0,
+      roundScore: chatRound ? (round?.roundScore ?? 0) : 0
+    },
     saveMessage
   })
 
@@ -78,27 +91,13 @@ export default function Task(): JSX.Element | null {
       setRound(startRound(config, performance.now()))
       setBetweenRounds(false)
     }
-    // The chat is only shown in the advised block
-    const showChat = session.block === 'advised'
     return (
       <main className="trial between-rounds">
         <p className="total-score" aria-live="polite">
           Total score: {trialScoreBefore}
         </p>
         <p className="get-ready">Get ready for round {roundNumber + 1}</p>
-        {showChat && (
-          <ChatPanel
-            persona={persona}
-            greeting={chatConfig.greeting}
-            messages={chat.messages}
-            partnerTyping={chat.partnerTyping}
-            error={chat.error}
-            disabled={false}
-            onSend={chat.send}
-          />
-        )}
-        {/* In the advised block focus is left for the chat box, so Enter can't skip the chat */}
-        <button className="btn-primary" type="button" onClick={handleStartRound} autoFocus={!showChat}>
+        <button className="btn-primary" type="button" onClick={handleStartRound} autoFocus>
           Start round {roundNumber + 1}
         </button>
       </main>
@@ -114,7 +113,8 @@ export default function Task(): JSX.Element | null {
   const handleRoundDone = (finished: RoundState): void => {
     // Check if this block is over by checking if the next round exists and is part of a different block
     const nextConfig = session.roundConfigs[roundNumber + 1]
-    const isLastRoundOfBlock = nextConfig !== undefined && nextConfig.blockIndex !== config.blockIndex
+    const isLastRoundOfBlock =
+      nextConfig !== undefined && nextConfig.blockIndex !== config.blockIndex
 
     completeRound(toRoundResponse(finished, trialScoreBefore, session.block))
     if (isLastRound) finishSession()
@@ -135,18 +135,36 @@ export default function Task(): JSX.Element | null {
   }
   const handleNext = (): void => handleRoundDone(round)
 
+  // The chat is only shown in the advised block
+  const showChat = session.block === 'advised'
   return (
     <main className="trial trial-play">
       <div className="trial-badge">
         Round {roundNumber + 1} of {totalRounds}
       </div>
-      <Round
-        round={round}
-        isLastRound={isLastRound}
-        onFlip={handleFlip}
-        onStop={handleStop}
-        onNext={handleNext}
-      />
+      {/* Cards on the left, chat on the right, as in the mockup */}
+      <div className={showChat ? 'play-columns with-chat' : 'play-columns'}>
+        <div className="play-board">
+          <Round
+            round={round}
+            isLastRound={isLastRound}
+            onFlip={handleFlip}
+            onStop={handleStop}
+            onNext={handleNext}
+          />
+        </div>
+        {showChat && (
+          <ChatPanel
+            persona={persona}
+            greeting={chatConfig.greeting}
+            messages={chat.messages}
+            partnerTyping={chat.partnerTyping}
+            error={chat.error}
+            disabled={round.roundEnded}
+            onSend={chat.send}
+          />
+        )}
+      </div>
     </main>
   )
 }

@@ -6,7 +6,7 @@ export type LiveTask = {
   round: LiveRound | null                         // Task's RoundState fits (it has more fields)
   betweenRounds: boolean
   upcoming: { round: RoundConfig; advice: Advice } | null
-  chat: ChatMessage[]                             // this break's messages
+  chat: ChatMessage[]                             // this round's messages
 }
 
 // Builds the snapshot sent to the proctor. Every round and config is copied field by field

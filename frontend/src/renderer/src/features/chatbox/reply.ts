@@ -2,7 +2,7 @@ import type { AdviceCondition, ChatMessage, RoundConfig, TrialConfig } from '../
 import type { ChatRequest, ChatResult } from '../../../../shared/ipc'
 import type { ChatConfig, Options, Persona } from '../../../../shared/options'
 import { getAdvice } from './advice'
-import { buildPrompt } from './prompt'
+import { buildPrompt, type RoundProgress } from './prompt'
 
 const REPLY_TIMEOUT_MS = 12_000 // the longest a participant waits on "..."
 
@@ -16,21 +16,23 @@ export type ReplyDeps = {
 }
 
 export type ReplyInput = {
-  upcomingRound: RoundConfig                  // the round the break comes before
+  round: RoundConfig                          // the round being played
   adviceCondition: AdviceCondition
   perceivedPartner: TrialConfig['perceivedPartner']
   actualPartner: TrialConfig['actualPartner']
   persona: Persona
   totalScoreBefore: number
+  progress: RoundProgress                     // the round as it stood when the message was sent
   history: ChatMessage[]                      // includes the message just sent
   chat: ChatConfig                            // from Chat.config.json
   prompts: Options['prompts']                 // the templates from Options/
 }
 
-// The board can't change during a break, so one request is enough: the advice can't go out of
-// date while waiting. Whether the break is still open when the reply arrives is useChat's job
+// The advice depends only on the round's settings, not on the cards turned so far, so it can't
+// go out of date while waiting. Whether the participant is still in the round when the reply
+// arrives is useChat's job
 export async function requestPartnerReply(deps: ReplyDeps, input: ReplyInput): Promise<ReplyOutcome> {
-  const advice = getAdvice(input.upcomingRound, input.adviceCondition, input.chat)
+  const advice = getAdvice(input.round, input.adviceCondition, input.chat)
   const request = buildPrompt({ ...input, advice, totalScore: input.totalScoreBefore })
 
   let result: ChatResult
@@ -50,7 +52,7 @@ export async function requestPartnerReply(deps: ReplyDeps, input: ReplyInput): P
       sender: 'advice_giver',
       text: result.text,
       sentAt: new Date().toISOString(),
-      roundIndex: input.upcomingRound.roundIndex,
+      roundIndex: input.round.roundIndex,
       advice,
       source: 'llm'
       // + model, latencyMs, promptVersion: PROMPT_VERSION, tokens once ChatMessage has those fields
@@ -61,15 +63,15 @@ export async function requestPartnerReply(deps: ReplyDeps, input: ReplyInput): P
 // This is the human-partner condition equivalent to the above requestPartnerReply
 // This one handles human replies and the above method handles llm replies
 export function toProctorMessage(
-  text: string, upcomingRound: RoundConfig, adviceCondition: AdviceCondition, chat: ChatConfig
+  text: string, round: RoundConfig, adviceCondition: AdviceCondition, chat: ChatConfig
 ): ChatMessage {
   return {
     sender: 'advice_giver',
     text,
     sentAt: new Date().toISOString(),
-    roundIndex: upcomingRound.roundIndex,
-    // the advice the proctor was shown, so messages.csv has the same advice columns as the LLM path
-    advice: getAdvice(upcomingRound, adviceCondition, chat),
+    roundIndex: round.roundIndex,
+    // the advice for this round, so messages.csv has the same advice columns as the LLM path
+    advice: getAdvice(round, adviceCondition, chat),
     source: 'student'
   }
 }

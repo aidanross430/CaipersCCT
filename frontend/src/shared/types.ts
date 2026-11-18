@@ -80,7 +80,7 @@ export type SessionData = {
 
 // Types for the advice engine
 
-// The advice provided to the LLM, for the round coming up after the break
+// The advice provided to the LLM, for the round being played
 export type Advice = {
     condition: AdviceCondition      // Risky, optimal, or safe
     suggestedTotalFlips: number     // How many total flips are suggested for that round
@@ -93,7 +93,7 @@ export type ChatMessage = {
     sender: 'participant' | 'advice_giver' | 'system'  // 'system' = a logged event (e.g. a failed reply), never shown as a chat bubble
     text: string                            // The message sent
     sentAt: string
-    roundIndex: number                      // the round the break was before (chat only happens between rounds)
+    roundIndex: number                      // the round the chat happened in (chat is open during rounds, advised block only)
     advice?: Advice                        // The advice provided for this response.
     source?: 'llm' | 'student' | 'fallback'  // Partner messages only: who wrote the text
     error?: string                          // System records only: why the partner couldn't reply

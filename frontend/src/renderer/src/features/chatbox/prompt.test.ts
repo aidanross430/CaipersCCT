@@ -18,8 +18,9 @@ const input: PromptInput = {
   persona: { name: 'Pat', avatar: 'P' },
   perceivedPartner: 'ai',
   advice: { condition: 'risky', suggestedTotalFlips: 23 },
-  upcomingRound: round,
+  round,
   totalScore: 0,
+  progress: { cardsTurned: 0, roundScore: 0 },
   history: [],
   prompts: {
     styleHuman: 'HUMAN STYLE for {{partnerName}}',

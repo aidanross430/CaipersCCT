@@ -3,15 +3,17 @@ import type { AdviceCondition, ChatMessage, RoundConfig, TrialConfig } from '../
 import type { ChatConfig, Options, Persona } from '../../../../shared/options'
 import { chatReducer, initialChatState } from './conversation'
 import { requestPartnerReply, toProctorMessage, type ReplyOutcome } from './reply'
+import type { RoundProgress } from './prompt'
 
 // What does the chat need from the task page?
 export type UseChatOptions = {
-  upcomingRound: RoundConfig | null             // the round the current break is before; null while a round is played
+  round: RoundConfig | null                     // the round being played, while the chat is open; null when it's closed
   adviceCondition: AdviceCondition
   perceivedPartner: TrialConfig['perceivedPartner']
   actualPartner: TrialConfig['actualPartner']
   persona: Persona
   totalScoreBefore: number                      // total from earlier rounds
+  progress: RoundProgress                       // cards turned and round score so far, for the prompt
   saveMessage: (message: ChatMessage) => void   // from SessionContext; saves to disk
   chat: ChatConfig                              // from Chat.config.json
   prompts: Options['prompts']                   // the templates from Options/
@@ -26,10 +28,11 @@ export type UseChat = {
 }
 
 // Connects the pure chat logic (conversation.ts, advice.ts) to React: keeps the message
-// list and waits a "typing" delay before each reply. The chat only happens on the break
-// between rounds, so a reply that arrives after that break has ended is dropped.
-// Call it from a component that stays mounted for the whole task (Task), so the
-// conversation carries over between rounds.
+// list and waits a "typing" delay before each reply. The chat happens during a round (advised
+// block only), beside the cards, and starts empty each round; a reply that arrives after the
+// participant has left that round is dropped.
+// Call it from a component that stays mounted for the whole task (Task), so replies still
+// pending when a round changes can be recognised as stale.
 export function useChat(options: UseChatOptions,): UseChat {
   const [state, dispatch] = useReducer(chatReducer, initialChatState)
 
@@ -56,15 +59,15 @@ export function useChat(options: UseChatOptions,): UseChat {
     (text: string): void => {
       const trimmed = text.trim()
       const options = optionsRef.current
-      const upcomingRound = options.upcomingRound
+      const round = options.round
 
       // Format the text and message data struct sent to the llm
-      if (!trimmed || !upcomingRound) return
+      if (!trimmed || !round) return
       const participantMessage: ChatMessage = {
         sender: 'participant',
         text: trimmed,
         sentAt: new Date().toISOString(),
-        roundIndex: upcomingRound.roundIndex
+        roundIndex: round.roundIndex
       }
 
       // Add the message to the chat and save it. Only the LLM owes a reply per message; a
@@ -100,7 +103,7 @@ export function useChat(options: UseChatOptions,): UseChat {
           // delay means a fast reply still shows "is typing..." for a moment first
           sleep: (ms) => new Promise((resolve) => setTimeout(resolve, readDelay + ms))
         },
-        { ...options, upcomingRound, history }
+        { ...options, round, history }
       )
         // requestPartnerReply turns API errors into a 'failed' outcome itself, but anything
         // thrown outside that (e.g. a template typo in buildPrompt) would otherwise leave
@@ -108,10 +111,10 @@ export function useChat(options: UseChatOptions,): UseChat {
         .catch((err: unknown): ReplyOutcome => ({ kind: 'failed', error: String(err) }))
         .then((outcome) => {
           if (!mounted.current) return  // the user went past the page
-          // A newer message is waiting on its own reply, or the participant started the round
-          // before this reply arrived: they never see it, so it isn't shown or saved
-          const breakEnded = optionsRef.current.upcomingRound?.roundIndex !== participantMessage.roundIndex
-          if (requestId !== latestRequest.current || breakEnded) {
+          // A newer message is waiting on its own reply, or the participant moved on from the
+          // round before this reply arrived: they never see it, so it isn't shown or saved
+          const roundLeft = optionsRef.current.round?.roundIndex !== participantMessage.roundIndex
+          if (requestId !== latestRequest.current || roundLeft) {
             dispatch({ type: 'CANCEL_REPLY' })
             return
           }
@@ -141,7 +144,7 @@ export function useChat(options: UseChatOptions,): UseChat {
   useEffect(() => {
     if (actualPartner !== 'student') return
     return window.api.onPartnerMessage((partnerMessage) => {
-      const { upcomingRound, adviceCondition, chat, saveMessage } = optionsRef.current
+      const { round, adviceCondition, chat, saveMessage } = optionsRef.current
 
       if (partnerMessage.type === 'typing') {
         dispatch({ type: 'PARTNER_TYPING', isTyping: partnerMessage.isTyping })
@@ -149,20 +152,20 @@ export function useChat(options: UseChatOptions,): UseChat {
       }
 
       // partnerMessage.type === 'chat'
-      if (!upcomingRound) {
-        // A round is being played, so the chat is hidden and the participant would never see
-        // this. Save it as a system record (roundIndex -1: it belongs to no break) so nothing
-        // the student typed silently disappears from the data
+      if (!round) {
+        // The chat is closed (the break screen, the solo block, between pages), so the
+        // participant would never see this. Save it as a system record (roundIndex -1: it
+        // belongs to no round's chat) so nothing the student typed silently disappears
         saveMessage({
           sender: 'system',
           text: partnerMessage.text,
           sentAt: new Date().toISOString(),
           roundIndex: -1,
-          error: 'Student message arrived while a round was being played'
+          error: 'Student message arrived while the chat was closed'
         })
         return
       }
-      const message = toProctorMessage(partnerMessage.text, upcomingRound, adviceCondition, chat)
+      const message = toProctorMessage(partnerMessage.text, round, adviceCondition, chat)
       dispatch({ type: 'PARTNER_MESSAGE', message })
       saveMessage(message)
     })
@@ -177,13 +180,13 @@ export function useChat(options: UseChatOptions,): UseChat {
     })
   }, [actualPartner])
 
-  // The chat shows only the current break: it starts empty each time. Every message is
+  // The chat shows only the current round: it starts empty each round. Every message is
   // still kept in state and saved to disk; this only changes what's displayed
-  const currentRound = options.upcomingRound?.roundIndex
+  const currentRound = options.round?.roundIndex
   const sentThisRound = state.lastSendRound === currentRound
 
-  // A student who was typing when the break ended may never send "stopped typing" for it,
-  // so clear their indicator whenever the break changes (starts, ends, or moves on)
+  // A student who was typing when the round ended may never send "stopped typing" for it,
+  // so clear their indicator whenever the chat's round changes (opens, closes, or moves on)
   useEffect(() => {
     if (actualPartner === 'student') dispatch({ type: 'PARTNER_TYPING', isTyping: false })
   }, [actualPartner, currentRound])
@@ -197,10 +200,10 @@ export function useChat(options: UseChatOptions,): UseChat {
     messages,
     partnerTyping:
       actualPartner === 'student'
-        ? // the student's own typing signal, only while a break is open
+        ? // the student's own typing signal, only while the chat is open
           state.proctorTyping && currentRound !== undefined
-        : // LLM: a reply still pending from the previous break is discarded when it arrives,
-          // so don't show "..." or that break's error in the new break's empty chat
+        : // LLM: a reply still pending from the previous round is discarded when it arrives,
+          // so don't show "..." or that round's error in the new round's empty chat
           state.pendingReplies > 0 && state.typingVisible && sentThisRound,
     error: sentThisRound ? state.error : null,
     send

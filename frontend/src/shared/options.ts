@@ -34,6 +34,8 @@ export const PROMPT_PLACEHOLDERS = [
   'numberLossCards',
   'totalCards',
   'totalScore',
+  'cardsTurned',
+  'roundScore',
   'suggestedTotalFlips',
   'adviceText'
 ] as const
