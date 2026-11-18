@@ -4,10 +4,11 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Card Game Proctor</title>
-    <!-- Same policy as index.html, plus connect-src so the page can open its WebSocket -->
+    <!-- Same policy as index.html. The proctor client's window talks to main over IPC
+         (window.proctorApi); the relay connection is in main, so the page opens no sockets -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"
     />
   </head>
 

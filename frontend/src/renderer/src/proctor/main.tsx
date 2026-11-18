@@ -1,7 +1,7 @@
-// Entry point for the proctor page (proctor.html). This runs in an ordinary browser on the
-// proctor's machine, not in Electron: there is no window.api, so nothing under proctor/ may
-// import code that uses it (SessionContext, useChat, optionsContext). Components and shared/
-// are fine
+// Entry point for the proctor client's window (proctor.html, --mode=proctor). Its preload is
+// preload/proctor.ts, which exposes window.proctorApi only: there is no window.api, so nothing
+// under proctor/ may import code that uses it (SessionContext, useChat, optionsContext,
+// usePartnerStatus). Components and shared/ are fine
 import '../assets/main.css'
 
 import { StrictMode } from 'react'

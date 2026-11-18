@@ -4,6 +4,7 @@
 //   release/CaipersCCT/
 //   ├── Condition A.bat  double-click to start, one launcher per condition
 //   ├── ...              (A to D, see src/main/launchCondition.ts)
+//   ├── Proctor.bat      the proctor client, for the student partner's computer
 //   ├── README.txt       instructions for research assistants, including which condition is which
 //   ├── Options/         editable settings (copied from defaults/Options)
 //   ├── Output/          session data is written here
@@ -51,6 +52,11 @@ for (const condition of ['A', 'B', 'C', 'D']) {
     ['@echo off', `start "" "%~dp0app\\CaipersCCT.exe" --condition=${condition}`, ''].join('\r\n')
   )
 }
+// And the proctor client, for the student partner's computer (src/main/proctor.ts)
+await writeFile(
+  join(outDir, 'Proctor.bat'),
+  ['@echo off', 'start "" "%~dp0app\\CaipersCCT.exe" --mode=proctor', ''].join('\r\n')
+)
 
 await cp(join(root, 'packaging', 'README.txt'), join(outDir, 'README.txt'))
 

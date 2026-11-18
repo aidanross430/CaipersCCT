@@ -51,3 +51,39 @@ export type CctApi = {
     onPartnerStatus: (cb: (status: PartnerStatus) => void) => () => void
     getPartnerStatus: () => Promise<PartnerStatus | null>  // null when there's no human partner this session
 }
+
+// ---------------------------------------------------------------------------------------
+// Proctor mode (--mode=proctor): the proctor client's window and main. A separate preload
+// (preload/proctor.ts) exposes only this API, so the proctor window can't reach the session,
+// saving or LLM channels above. The relay link and its token stay in main (main/proctor.ts)
+// ---------------------------------------------------------------------------------------
+
+export const PROCTOR_IPC = {
+    connect: 'proctor:connect',         // renderer -> main: join the room with this code
+    disconnect: 'proctor:disconnect',   // renderer -> main: leave, back to code entry
+    send: 'proctor:send',               // renderer -> main: chat / typing to the participant
+    state: 'proctor:state',             // main -> renderer: ProctorState changes
+    view: 'proctor:view',               // main -> renderer: each new ProctorView
+    snapshot: 'proctor:snapshot'        // renderer asks once on load: the current state and view
+} as const
+
+// Where the proctor client is. The link's PartnerStatus alone can't say "no room joined", so
+// main wraps it:
+//   idle    no room joined: the window shows code entry, with why the last room ended (a
+//           rejection, a wrong key, ...) or null on first launch and after Disconnect
+//   joined  a link to this code exists; status is that link's PartnerStatus
+//           (waiting = no participant paired yet, connected, disconnected = retrying)
+export type ProctorState =
+    | { connection: 'idle'; problem: string | null }
+    | { connection: 'joined'; code: string; status: PartnerStatus }
+
+export type ProctorSnapshot = { state: ProctorState; view: ProctorView | null }
+
+export type ProctorApi = {
+    connect: (code: string) => Promise<void>    // rejects if the code isn't a room code
+    disconnect: () => void
+    send: (message: PartnerMessage) => void     // dropped by the link unless connected
+    onState: (cb: (state: ProctorState) => void) => () => void
+    onView: (cb: (view: ProctorView) => void) => () => void
+    getSnapshot: () => Promise<ProctorSnapshot>
+}

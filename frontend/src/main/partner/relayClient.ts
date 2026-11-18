@@ -280,12 +280,48 @@ export function createParticipantRelayLink(options: RelayClientOptions): Partici
 
 // --- proctor link (Phase 4) ---
 
-export function createProctorRelayLink(options: RelayClientOptions & { room: string }): ProctorLink {
-  // TODO (Phase 4): on createRelayTransport({ ...options, role: 'proctor' })
-  //   ready with peerPresent, or peer joined → send handshake { version: PROTOCOL_VERSION, code }
-  //   welcome → 'connected'; rejected → close() and report the reason (wrong code, version)
-  //   peer left → 'disconnected' 'The participant disconnected'; wait for them to come back
-  //   data → parseToProctor → onMessage (view, welcome, rejected)
+export type ProctorRelayLinkOptions = RelayClientOptions & {
+  room: string                           // the code the proctor typed, already checked by isRoomCode
+  // Called once when the link gives up for good: rejected by the participant (version mismatch),
+  // or the transport stopped (bad key, relay version). main/proctor.ts then goes back to code
+  // entry and shows the reason. Not called for drops it will retry, or for close()
+  onEnded?: (reason: string) => void
+}
+
+// The proctor side: the mirror image of createParticipantRelayLink. It asks (handshake); the
+// participant answers (welcome / rejected)
+export function createProctorRelayLink(options: ProctorRelayLinkOptions): ProctorLink {
+  // TODO: on createRelayTransport({ ...options, role: 'proctor', room: options.room })
+  //
+  // State
+  //   paired: boolean     true after 'welcome' from the current participant socket
+  //   ended: boolean      after onEnded: ignore everything, never call it twice
+  //
+  // Handshake: sent whenever a participant socket may be there and we're not paired
+  //   ready with peerPresent      → send handshake { type: 'handshake', version: PROTOCOL_VERSION, code: room }
+  //   peer joined                 → paired = false; send handshake (a new participant socket,
+  //                                 e.g. the participant app reconnected)
+  //   (code is still required by validate.ts, though the relay already matched the room)
+  //
+  // Transport state → PartnerStatus
+  //   ready      → 'waiting' { join: { url: options.url, code: room } } until 'welcome'
+  //   retrying   → paired = false; 'disconnected' { reason }
+  //   stopped    → end(reason)
+  //   no-such-room is a retry (the transport backs off): the participant may not have opened
+  //   the app yet, so the proctor keeps waiting rather than being sent back to code entry
+  //
+  // Peer left → if paired: paired = false; 'disconnected' 'The participant disconnected', then
+  //   'waiting' (the room stays open for them; they reclaim it with their claim)
+  //
+  // Data from the participant (parseToProctor; bad → onProblem, ignored)
+  //   welcome   → paired = true; 'connected'
+  //   rejected  → end(reason): the participant refused (protocol version), retrying won't help
+  //   view      → onMessage listeners (only while paired)
+  //
+  // end(reason): ended = true; transport.close(); 'disconnected' { reason }; onEnded?.(reason)
+  //
+  // send(message)  chat / typing → transport.send(JSON.stringify(message)) only while paired
+  // close()        transport.close(); no onEnded (the proctor chose to leave)
   void options
   throw new Error('createProctorRelayLink is not implemented yet')
 }

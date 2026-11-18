@@ -9,6 +9,9 @@
 //
 // Without a flag, `npm run dev` uses Chat.config.json's values as before, and a packaged build
 // refuses to start, so double-clicking the bare .exe can't silently run some condition.
+//
+// The other launcher, Proctor.bat, passes --mode=proctor instead: the proctor client
+// (main/proctor.ts), which runs no condition, so it can't be combined with --condition.
 import type { ChatConfig, Options } from '../shared/options'
 
 export type ConditionKey = 'A' | 'B' | 'C' | 'D'
@@ -46,6 +49,33 @@ export function readLaunchCondition(argv: readonly string[]): LaunchCondition {
     }
   }
   return { ok: true, condition: key as ConditionKey }
+}
+
+const MODE_FLAG = '--mode='
+
+export type LaunchMode =
+  | { ok: true; mode: 'participant' | 'proctor' } // participant: no --mode flag
+  | { ok: false; problem: string }
+
+// Checked before readLaunchCondition: proctor mode skips conditions entirely
+export function readLaunchMode(argv: readonly string[]): LaunchMode {
+  const values = argv
+    .filter((arg) => arg.startsWith(MODE_FLAG))
+    .map((arg) => arg.slice(MODE_FLAG.length))
+  if (values.length === 0) return { ok: true, mode: 'participant' }
+
+  const unknown = values.find((v) => v.toLowerCase() !== 'proctor')
+  if (unknown !== undefined) {
+    return { ok: false, problem: `"${unknown}" isn't a mode. The only mode is "proctor".` }
+  }
+  if (argv.some((arg) => arg.startsWith(FLAG))) {
+    return {
+      ok: false,
+      problem:
+        'It was started as both the proctor client and a condition. Use one launcher, not both.'
+    }
+  }
+  return { ok: true, mode: 'proctor' }
 }
 
 // The options with the condition's two settings in place of Chat.config.json's

@@ -50,6 +50,11 @@ STUDENT PARTNER (CONDITIONS A AND C)
   If either is missing, CaipersCCT says so and doesn't start. The Welcome page shows a
   session code: give it to the student at the proctor computer to connect.
 
+  On the proctor computer, use a copy of this same folder and double-click Proctor.bat.
+  It needs the same "relayUrl" and relay-key.txt as the participant computer, and nothing
+  else from Options/. Type the session code from the participant's Welcome page. The
+  proctor stays connected for every participant until the participant app is closed.
+
   Treat relay-key.txt as private, like api-key.txt below.
 
 CHAT PARTNER

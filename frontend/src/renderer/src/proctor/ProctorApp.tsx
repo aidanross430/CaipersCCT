@@ -1,23 +1,24 @@
 import type { JSX } from 'react'
-import { PROTOCOL_VERSION } from '../../../shared/partner/protocol'
+import CodeEntry from './CodeEntry'
+import SessionScreen from './SessionScreen'
+import { useProctorLink } from './useProctorLink'
 
-// Where the page's WebSocket will connect. Served by the participant app, that's the server the
-// page came from. In `npm run dev` the page comes from the Vite dev server instead, so lanHost
-// redirects here with ?host=<lanHost's address> to say where the real server is
-function partnerSocketUrl(): string {
-  const host = new URLSearchParams(location.search).get('host') || location.host
-  return `ws://${host}`
-}
+// The proctor client: code entry until a room is joined, then the live session.
+// All connection logic is in main (main/proctor.ts); this only shows its state
+export default function ProctorApp(): JSX.Element | null {
+  const { state, view } = useProctorLink()
+  if (!state) return null // main hasn't answered yet: a blank frame, not a flash of code entry
 
-// For now just proves the page is built and served. Next: the pairing form and live view
-export default function ProctorApp(): JSX.Element {
+  if (state.connection === 'idle') {
+    return <CodeEntry problem={state.problem} onConnect={window.proctorApi.connect} />
+  }
   return (
-    <main className="trial">
-      <h1>Hello, proctor</h1>
-      <p>This page was served from {location.host}.</p>
-      <p>
-        It will connect to <code>{partnerSocketUrl()}</code> using protocol version {PROTOCOL_VERSION}.
-      </p>
-    </main>
+    <SessionScreen
+      code={state.code}
+      status={state.status}
+      view={view}
+      onSend={window.proctorApi.send}
+      onDisconnect={window.proctorApi.disconnect}
+    />
   )
 }

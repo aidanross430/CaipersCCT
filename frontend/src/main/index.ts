@@ -12,7 +12,8 @@ import { chatReply, setApiKey } from './llm';
 import { API_KEY_FILE, readApiKey } from './apiKey';
 import { loadOptions, optionsHash, OptionsError, validateChatConfig } from './options';
 import { CONFIG_FILES, type Options } from '../shared/options';
-import { applyCondition, readLaunchCondition } from './launchCondition';
+import { applyCondition, readLaunchCondition, readLaunchMode } from './launchCondition';
+import { startProctor } from './proctor';
 import { appendMessage } from './storage';
 import type { ParticipantLink, PartnerStatus } from '../shared/partner/link';
 import type { ProctorView } from '../shared/partner/protocol';
@@ -94,6 +95,19 @@ app.whenReady().then(async () => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // Proctor.bat (--mode=proctor) runs the proctor client instead, which needs none of the
+  // participant setup below (main/proctor.ts)
+  const mode = readLaunchMode(process.argv)
+  if (!mode.ok) {
+    dialog.showErrorBox('CaipersCCT was started the wrong way', `${mode.problem}\n\nREADME.txt lists the launchers.`)
+    app.quit()
+    return
+  }
+  if (mode.mode === 'proctor') {
+    await startProctor({ optionsDir: join(baseDir(), 'Options'), defaultsDir: defaultsDir() })
+    return
+  }
 
   // Which condition to run, from the launcher (launchCondition.ts). A packaged build must be
   // started from a launcher; npm run dev may leave it to Chat.config.json
