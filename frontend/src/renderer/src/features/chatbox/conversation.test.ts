@@ -1,14 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import type { ChatMessage, RoundConfig } from '../../../../shared/types'
-import { chatReducer, initialChatState, partnerReply } from './conversation'
-import { startRound, flipCard } from '../cct/scoring'
+import type { ChatMessage } from '../../../../shared/types'
+import { chatReducer, initialChatState } from './conversation'
 
 const msg = (text: string, sender: ChatMessage['sender'] = 'participant'): ChatMessage => ({
   sender,
   text,
   sentAt: '2026-10-10T12:00:00.000Z',
-  roundIndex: 0,
-  flipsSoFar: 0
+  roundIndex: 0
 })
 
 describe('chatReducer', () => {
@@ -96,33 +94,5 @@ describe('chatReducer', () => {
     chatReducer(before, { type: 'REPLY', message: msg('hello', 'advice_giver') })
     expect(before.messages).toHaveLength(1)
     expect(initialChatState.messages).toHaveLength(0)
-  })
-})
-
-describe('partnerReply', () => {
-  const config: RoundConfig = {
-    roundIndex: 3,
-    isPractice: false,
-    gainAmount: 10,
-    lossAmount: 250,
-    numberLossCards: 1,
-    totalCards: 32,
-    lossPositions: [31],
-    rigged: false,
-    lossOnFlipNum: null
-  }
-
-  it('builds a fallback partner message from the round as it is now', () => {
-    let state = startRound(config, 0)
-    state = flipCard(state, 0, 100)
-    state = flipCard(state, 1, 200)
-    const reply = partnerReply(state, 'risky', '2026-10-10T12:00:00.000Z', { riskyFlips: 7, safeFlips: 7 })
-
-    expect(reply.sender).toBe('advice_giver')
-    expect(reply.source).toBe('fallback')
-    expect(reply.roundIndex).toBe(3)
-    expect(reply.flipsSoFar).toBe(2)
-    expect(reply.advice?.flipsSoFar).toBe(2)
-    expect(reply.text.length).toBeGreaterThan(0)
   })
 })

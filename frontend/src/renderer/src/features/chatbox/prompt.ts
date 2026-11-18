@@ -1,10 +1,9 @@
 // In charge of constructing the prompt that is given to the AI each time the user
 // sends a message
 
-import type { Advice, ChatMessage } from '../../../../shared/types'
+import type { Advice, ChatMessage, RoundConfig, TrialConfig } from '../../../../shared/types'
 import type { ChatRequest, ChatTurn } from '../../../../shared/ipc'
 import type { Options, Persona, PromptPlaceholder } from '../../../../shared/options'
-import type { RoundState } from '../cct/scoring'
 
 
 
@@ -12,18 +11,30 @@ import type { RoundState } from '../cct/scoring'
 // Stops the entire session's chat history from accumulating in the prompt.
 const MAX_HISTORY = 20
 
+// Where the participant is in the round being played, when they sent their message. The chat
+// is open mid-round, so the partner should know how far they've got, whatever the advice is
+export type RoundProgress = {
+    cardsTurned: number             // cards turned over so far this round
+    roundScore: number              // points this round so far
+}
+
 export type PromptInput = {
     persona: Persona
-    displayCondition: 'human' | 'ai'
+    perceivedPartner: TrialConfig['perceivedPartner']  // picks the style template
     advice: Advice
-    round: RoundState
-    totalScore: number
+    round: RoundConfig              // the round being played
+    totalScore: number              // total from earlier rounds
+    progress: RoundProgress
     history: ChatMessage[]
     prompts: Options['prompts']     // the templates from Options/
 }
 
 export function buildPrompt(input: PromptInput): ChatRequest {
-    const { persona, displayCondition, advice, round, totalScore, history, prompts } = input
+    const { persona, perceivedPartner, advice, round, totalScore, progress, history, prompts } = input
+
+    // Only the LLM path builds a prompt, so this is the perceived-partner choice for an LLM
+    // partner: sound like a person when participants are told it's a person, like an AI otherwise
+    const style = perceivedPartner === 'human' ? prompts.styleHuman : prompts.styleAi
 
     // Merges the information needed by each prompt with the relevant round information
     // This array needs to include everything the AI should be able to answer
@@ -31,24 +42,23 @@ export function buildPrompt(input: PromptInput): ChatRequest {
     // templates against can't drift apart
     const values: Record<PromptPlaceholder, string | number> = {
         partnerName: persona.name,
-        roundNumber: round.config.roundIndex + 1,   // 1-based, as participants see it
-        gainAmount: round.config.gainAmount,
-        lossAmount: round.config.lossAmount,
-        numberLossCards: round.config.numberLossCards,
-        totalCards: round.config.totalCards,
-        flipsSoFar: advice.flipsSoFar,
-        roundScore: round.roundScore,
+        roundNumber: round.roundIndex + 1,   // 1-based, as participants see it
+        gainAmount: round.gainAmount,
+        lossAmount: round.lossAmount,
+        numberLossCards: round.numberLossCards,
+        totalCards: round.totalCards,
         totalScore: totalScore,
+        cardsTurned: progress.cardsTurned,
+        roundScore: progress.roundScore,
         suggestedTotalFlips: advice.suggestedTotalFlips,
         adviceText: adviceText(advice)
     }
 
-    const identity = displayCondition === 'human' ? prompts.identityHuman : prompts.identityAi
-    const system = [identity, prompts.style, prompts.rules, prompts.situation]
+    const system = [style, prompts.rules, prompts.situation]
         .map((template) => fillTemplate(template,values))
         .join('\n\n')
 
-        return {system, messages: toTurns(history, round.config.roundIndex)}
+        return {system, messages: toTurns(history, round.roundIndex)}
 }
 
 // Takes in markdown text and fills in the fields with the provided values.
@@ -66,21 +76,13 @@ function fillTemplate(template: string, values: Record<string, string | number>)
   return filled.trim()
 }
 
-// Provides a template 'action' for the participant to take based on the flips
-// The advice as an instruction to the model. Past the suggested total, risky advice still
-// says to keep going, so there's no number left to give: just "another card"
+// The advice as an instruction to the model
 function adviceText(advice: Advice): string {
-  const { suggestedTotalFlips: total, flipsSoFar } = advice
-  if (advice.action === 'stop') return 'tell them to stop now and keep their points'
-  if (flipsSoFar === 0) return `tell them to go for about ${total} cards this round`
-  if (flipsSoFar < total) {
-    return `tell them to keep going, about ${total - flipsSoFar} more, for about ${total} cards in total this round`
-  }
-  return 'tell them to keep going and turn over another card'
+  return `tell them to go for about ${advice.suggestedTotalFlips} cards in total this round`
 }
 
 // Converts the chat history into a format useable by the LLM
-// Only the current round's messages are sent. Each round has new cards, point values and
+// Only this round's messages are sent. Each round has new cards, point values and
 // advice, so earlier rounds' numbers would only tempt the model to compare or "correct"
 // itself; leaving them out also keeps every round's advice delivered the same way
 function toTurns(history: ChatMessage[], roundIndex: number): ChatTurn[] {

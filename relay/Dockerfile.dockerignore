@@ -1,0 +1,11 @@
+# The build context is the repo root (see Dockerfile). Send only what the build uses:
+# never node_modules, .env, participant data or the rest of the frontend
+*
+!relay/package.json
+!relay/package-lock.json
+!relay/tsconfig.json
+!relay/build.mjs
+!relay/src
+relay/src/**/*.test.ts
+!frontend/src/shared/check.ts
+!frontend/src/shared/partner/relay.ts

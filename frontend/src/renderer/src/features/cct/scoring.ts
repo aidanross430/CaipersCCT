@@ -2,7 +2,7 @@
 // to be answered is when scoring happens. For now, following Inquisit's
 // CCT rules
 
-import { CardFlip, RoundConfig, RoundEndReason, RoundResponse } from '../../../../shared/types';
+import { Block, CardFlip, RoundConfig, RoundEndReason, RoundResponse } from '../../../../shared/types';
 
 export type RoundState = {
     config: RoundConfig
@@ -28,13 +28,13 @@ export function startRound(config: RoundConfig, now: number): RoundState {
 
 // Determines whether the card flipped was a gain or a loss
 export function resolveFlip(config: RoundConfig, cardPosition: number, flipsSoFar: number): 'gain' | 'loss' {
-    // Throw an error if the round is rigged
-    if (config.rigged) {
+    // Rigged rounds ignore card positions: the loss is whichever card is turned on riggedLossFlip
+    if (config.roundType === 'rigged') {
         // return loss if this card is rigged to be a loss
-        return flipsSoFar+1 === config.lossOnFlipNum ? 'loss' : 'gain'
+        return flipsSoFar+1 === config.riggedLossFlip ? 'loss' : 'gain'
     }
     // Check the card position against the Round's loss positions
-    return config.lossPositions.includes(cardPosition) ? 'loss' : 'gain'
+    return config.fillerLossPositions.includes(cardPosition) ? 'loss' : 'gain'
 }
 
 // Processes everything that happened when a user flips over a card
@@ -94,7 +94,7 @@ export function stopRound(state: RoundState): RoundState {
 }
 
 // Converts a completed round state into a RoundResponse.
-export function toRoundResponse(state: RoundState, trialScoreBefore: number): RoundResponse {
+export function toRoundResponse(state: RoundState, trialScoreBefore: number, block: Block): RoundResponse {
     // Error if the round isn't finished
     if (!state.roundEnded || state.endReason === null) {
         throw new Error(`Round ${state.config.roundIndex} is not over yet.`)
@@ -102,11 +102,21 @@ export function toRoundResponse(state: RoundState, trialScoreBefore: number): Ro
 
     // Final value calculations
     const gainCardsFlipped = state.flips.filter((f) => f.outcome === 'gain').length
-    const trialScore = state.config.isPractice ? trialScoreBefore : trialScoreBefore + state.roundScore
+    const trialScore = trialScoreBefore + state.roundScore
+    const { config } = state
 
     // return the round response
     return {
-        roundIndex: state.config.roundIndex,
+        roundIndex: config.roundIndex,
+        blockIndex: config.blockIndex,
+        block,
+        roundType: config.roundType,
+        gainAmount: config.gainAmount,
+        lossAmount: config.lossAmount,
+        numberLossCards: config.numberLossCards,
+        fillerLossPositions: config.fillerLossPositions,
+        riggedLossFlip: config.riggedLossFlip,
+        actualLossFlip: state.flips.find((f) => f.outcome === 'loss')?.flipIndex ?? null,
         flips: state.flips,
         endReason: state.endReason,
         gainCardsFlipped,

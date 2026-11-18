@@ -1,17 +1,19 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
-import type { AdviceCondition, ChatMessage, TrialConfig } from '../../../../shared/types'
-import type { RoundState } from '../cct/scoring'
+import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react'
+import type { AdviceCondition, ChatMessage, RoundConfig, TrialConfig } from '../../../../shared/types'
 import type { ChatConfig, Options, Persona } from '../../../../shared/options'
 import { chatReducer, initialChatState } from './conversation'
-import { requestPartnerReply, type ReplyOutcome } from './reply'
+import { requestPartnerReply, toProctorMessage, type ReplyOutcome } from './reply'
+import type { RoundProgress } from './prompt'
 
 // What does the chat need from the task page?
 export type UseChatOptions = {
-  round: RoundState | null
+  round: RoundConfig | null                     // the round being played, while the chat is open; null when it's closed
   adviceCondition: AdviceCondition
-  displayCondition: TrialConfig['chatDisplayCondition']
+  perceivedPartner: TrialConfig['perceivedPartner']
+  actualPartner: TrialConfig['actualPartner']
   persona: Persona
   totalScoreBefore: number                      // total from earlier rounds
+  progress: RoundProgress                       // cards turned and round score so far, for the prompt
   saveMessage: (message: ChatMessage) => void   // from SessionContext; saves to disk
   chat: ChatConfig                              // from Chat.config.json
   prompts: Options['prompts']                   // the templates from Options/
@@ -26,10 +28,11 @@ export type UseChat = {
 }
 
 // Connects the pure chat logic (conversation.ts, advice.ts) to React: keeps the message
-// list, waits a "typing" delay before each reply, and builds the reply from the round as it
-// is when the reply appears, not when the message was sent.
-// Call it from a component that stays mounted for the whole task (Task), so the
-// conversation carries over between rounds.
+// list and waits a "typing" delay before each reply. The chat happens during a round (advised
+// block only), beside the cards, and starts empty each round; a reply that arrives after the
+// participant has left that round is dropped.
+// Call it from a component that stays mounted for the whole task (Task), so replies still
+// pending when a round changes can be recognised as stale.
 export function useChat(options: UseChatOptions,): UseChat {
   const [state, dispatch] = useReducer(chatReducer, initialChatState)
 
@@ -54,28 +57,34 @@ export function useChat(options: UseChatOptions,): UseChat {
 
   const send = useCallback(
     (text: string): void => {
-      // Get the prompt text and round's live data
       const trimmed = text.trim()
       const options = optionsRef.current
       const round = options.round
 
       // Format the text and message data struct sent to the llm
-      if (!trimmed || !round || round.roundEnded) return
+      if (!trimmed || !round) return
       const participantMessage: ChatMessage = {
         sender: 'participant',
         text: trimmed,
         sentAt: new Date().toISOString(),
-        roundIndex: round.config.roundIndex,
-        flipsSoFar: round.flips.length
+        roundIndex: round.roundIndex
       }
 
-      // send that message
+      // Add the message to the chat and save it. Only the LLM owes a reply per message; a
+      // student replies whenever they choose, so nothing is counted for them
+      const isLlm = options.actualPartner === 'llm'
       dispatch({
         type: 'SEND',
-        message: participantMessage
+        message: participantMessage,
+        awaitReply: isLlm
       })
-      optionsRef.current.saveMessage(participantMessage)
+      options.saveMessage(participantMessage)
 
+      // Student partner: they see this message through the proctor view Task publishes, and
+      // their reply arrives through the onPartnerMessage effect below. Nothing to request here
+      if (!isLlm) return
+
+      // LLM partner: ask for one reply, with the fake read and typing delays
       const requestId = ++latestRequest.current
       const history = [...messagesRef.current, participantMessage]  // add the user's most recent chat to the history
 
@@ -90,12 +99,11 @@ export function useChat(options: UseChatOptions,): UseChat {
       void requestPartnerReply(
         {
           chatReply: window.api.chatReply,
-          getRound: () => optionsRef.current.round,
           // requestPartnerReply waits this out as the minimum typing time. Adding the read
           // delay means a fast reply still shows "is typing..." for a moment first
           sleep: (ms) => new Promise((resolve) => setTimeout(resolve, readDelay + ms))
         },
-        { ...options, history}
+        { ...options, round, history }
       )
         // requestPartnerReply turns API errors into a 'failed' outcome itself, but anything
         // thrown outside that (e.g. a template typo in buildPrompt) would otherwise leave
@@ -103,7 +111,10 @@ export function useChat(options: UseChatOptions,): UseChat {
         .catch((err: unknown): ReplyOutcome => ({ kind: 'failed', error: String(err) }))
         .then((outcome) => {
           if (!mounted.current) return  // the user went past the page
-          if (requestId !== latestRequest.current || outcome.kind === 'discard') {
+          // A newer message is waiting on its own reply, or the participant moved on from the
+          // round before this reply arrived: they never see it, so it isn't shown or saved
+          const roundLeft = optionsRef.current.round?.roundIndex !== participantMessage.roundIndex
+          if (requestId !== latestRequest.current || roundLeft) {
             dispatch({ type: 'CANCEL_REPLY' })
             return
           }
@@ -117,7 +128,6 @@ export function useChat(options: UseChatOptions,): UseChat {
               text: '',
               sentAt: new Date().toISOString(),
               roundIndex: participantMessage.roundIndex,
-              flipsSoFar: optionsRef.current.round?.flips.length ?? participantMessage.flipsSoFar,
               error: outcome.error
             })
             return
@@ -127,15 +137,74 @@ export function useChat(options: UseChatOptions,): UseChat {
         })
     }, [])
 
+  // Student partner: their chat and typing arrive from main (the partner link), not as a reply
+  // to a request, so listen for them for as long as the task page is up. The unsubscribe that
+  // onPartnerMessage returns is the effect's cleanup
+  const { actualPartner } = options
+  useEffect(() => {
+    if (actualPartner !== 'student') return
+    return window.api.onPartnerMessage((partnerMessage) => {
+      const { round, adviceCondition, chat, saveMessage } = optionsRef.current
+
+      if (partnerMessage.type === 'typing') {
+        dispatch({ type: 'PARTNER_TYPING', isTyping: partnerMessage.isTyping })
+        return
+      }
+
+      // partnerMessage.type === 'chat'
+      if (!round) {
+        // The chat is closed (the break screen, the solo block, between pages), so the
+        // participant would never see this. Save it as a system record (roundIndex -1: it
+        // belongs to no round's chat) so nothing the student typed silently disappears
+        saveMessage({
+          sender: 'system',
+          text: partnerMessage.text,
+          sentAt: new Date().toISOString(),
+          roundIndex: -1,
+          error: 'Student message arrived while the chat was closed'
+        })
+        return
+      }
+      const message = toProctorMessage(partnerMessage.text, round, adviceCondition, chat)
+      dispatch({ type: 'PARTNER_MESSAGE', message })
+      saveMessage(message)
+    })
+  }, [actualPartner])
+
+  // A student whose connection drops mid-message never sends "stopped typing", so clear the
+  // indicator whenever the link is anything but connected ('waiting' or 'disconnected')
+  useEffect(() => {
+    if (actualPartner !== 'student') return
+    return window.api.onPartnerStatus((status) => {
+      if (status.state !== 'connected') dispatch({ type: 'PARTNER_TYPING', isTyping: false })
+    })
+  }, [actualPartner])
+
   // The chat shows only the current round: it starts empty each round. Every message is
   // still kept in state and saved to disk; this only changes what's displayed
-  const currentRound = options.round?.config.roundIndex
+  const currentRound = options.round?.roundIndex
   const sentThisRound = state.lastSendRound === currentRound
+
+  // A student who was typing when the round ended may never send "stopped typing" for it,
+  // so clear their indicator whenever the chat's round changes (opens, closes, or moves on)
+  useEffect(() => {
+    if (actualPartner === 'student') dispatch({ type: 'PARTNER_TYPING', isTyping: false })
+  }, [actualPartner, currentRound])
+  // Memoized so the list only changes when a message does: Task passes it to an effect (the
+  // proctor view), and a new array every render would re-run that effect every render
+  const messages = useMemo(
+    () => state.messages.filter((m) => m.roundIndex === currentRound),
+    [state.messages, currentRound]
+  )
   return {
-    messages: state.messages.filter((m) => m.roundIndex === currentRound),
-    // A reply still pending from the previous round is discarded when it arrives, so don't
-    // show "..." or that round's error in the new round's empty chat
-    partnerTyping: state.pendingReplies > 0 && state.typingVisible && sentThisRound,
+    messages,
+    partnerTyping:
+      actualPartner === 'student'
+        ? // the student's own typing signal, only while the chat is open
+          state.proctorTyping && currentRound !== undefined
+        : // LLM: a reply still pending from the previous round is discarded when it arrives,
+          // so don't show "..." or that round's error in the new round's empty chat
+          state.pendingReplies > 0 && state.typingVisible && sentThisRound,
     error: sentThisRound ? state.error : null,
     send
   }

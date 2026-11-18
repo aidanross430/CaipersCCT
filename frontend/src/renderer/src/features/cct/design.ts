@@ -3,6 +3,9 @@
 import type { RoundConfig } from '../../../../shared/types'
 import type { DesignConfig } from '../../../../shared/options'
 
+// two blocks, one where the user plays solo and one where they are given advice between rounds
+export const NUM_BLOCKS = 2
+
 // The parts of a round that come from the factorial design (gain x loss x number of loss cards)
 export type Condition = Pick<RoundConfig, 'gainAmount' | 'lossAmount' | 'numberLossCards'>
 
@@ -20,11 +23,11 @@ export function createRng(seed: number): () => number {
   }
 }
 
-// Every gain x loss x loss-card-count combination, repeated repitionsPerCondition times.
+// Every gain x loss x loss-card-count combination, repeated repititionsPerConditionPerBlock times.
 // Order is deterministic (not shuffled); shuffling happens in buildRoundConfigs.
 export function buildConditions(config: DesignConfig): Condition[] {
   const conditions: Condition[] = []
-  for (let rep = 0; rep < config.repititionsPerCondition; rep++) {
+  for (let rep = 0; rep < config.repititionsPerConditionPerBlock; rep++) {
     for (const gainAmount of config.gainAmounts) {
       for (const lossAmount of config.lossAmounts) {
         for (const numberLossCards of config.lossCardCounts) {
@@ -69,22 +72,53 @@ export function placeLossCards(numberLossCards: number, totalCards: number, rng:
 // function buildPracticeRounds(config: TrialConfig): RoundConfig[] {
 // }
 
-// If wanted, rigged rounds that prevent data censorship
+// All rounds EXCEPT filler rounds should be rigged. A rigged round has no fixed loss positions:
+// whichever card is turned on flip riggedLossFlip is the loss, and every other card is a gain.
+// The loss flip is picked at random from the last riggedLossCardWindow flips it could fall on
 export function assignRigging(rounds: RoundConfig[], config: DesignConfig, rng: () => number): RoundConfig[] {
-  // randomly pick rounds to be rigged. The indexes of these rounds are stored in the roundIndexes array
-  const riggedIndexes = new Set(shuffle(rounds.map((_, i) => i), rng).slice(0, config.rigging.roundsRigged))
-
-  return rounds.map((round, i) => 
-    // Iterate through each round, and rig any rounds whose indexes match riggedIndexes
-    riggedIndexes.has(i)
-    ? {
+  return rounds.map((round) => {
+    // The latest flip a loss can be on: right after all (totalCards - numberLossCards) gain cards
+    const lastPossibleFlip = round.totalCards - round.numberLossCards + 1
+    return {
       ...round,
-      rigged: true,
-      lossOnFlipNum: round.totalCards - round.numberLossCards,  // A rigged match has the loss card on the last possible flip
-      lossPositions: []
+      roundType: 'rigged',
+      // one of lastPossibleFlip - (riggedLossCardWindow - 1) ... lastPossibleFlip, each equally likely
+      riggedLossFlip: lastPossibleFlip - Math.floor(rng() * config.riggedLossCardWindow),
+      fillerLossPositions: []
     }
-    : round
-  )
+  })
+}
+
+// Creates numFillerRoundsPerBlock non-rigged filler rounds for one block and disperses them
+// randomly among that block's rigged rounds.
+// The round's conditions are randomly selected from the possible conditions
+// The loss card for filler rounds are randomly selected among the 32 cards
+export function buildFillerRounds(
+  config: DesignConfig,
+  rounds: RoundConfig[],
+  blockIndex: number,
+  rng: () => number
+): RoundConfig[] {
+  // picks one item from a list using the seeded rng
+  const pick = <T,>(items: T[]): T => items[Math.floor(rng() * items.length)]
+
+  const fillers = Array.from({ length: config.numFillerRoundsPerBlock }, (): RoundConfig => {
+    const numberLossCards = pick(config.lossCardCounts)
+    return {
+      roundIndex: 0, // temp value, set once the blocks are joined in buildRoundConfigs
+      blockIndex,
+      gainAmount: pick(config.gainAmounts),
+      lossAmount: pick(config.lossAmounts),
+      numberLossCards,
+      totalCards: config.totalCards,
+      fillerLossPositions: placeLossCards(numberLossCards, config.totalCards, rng),
+      riggedLossFlip: null,
+      roundType: 'filler'
+    }
+  })
+
+  // Shuffle the filler rounds in with the rigged rounds so they can land anywhere in the block
+  return shuffle([...rounds, ...fillers], rng)
 }
 
 // Make sure the provided round configs make sense
@@ -93,24 +127,28 @@ export function assignRigging(rounds: RoundConfig[], config: DesignConfig, rng: 
 // }
 
 export function buildRoundConfigs(config: DesignConfig, seed: number): RoundConfig[] {
-    // TODO: Validate that the config makes sense
-
     // Create an rng
     const rng = createRng(seed)
     // Build condition array and shuffle it so each condition appears randomly
     const conditions = shuffle(buildConditions(config), rng)
 
-    // Build the conditon array that is indexed with loss cards placed.
-    const rounds = conditions.map((condition, i) => ({
-        roundIndex: i,
-        isPractice: false,
+    // Each block gets its own array: every condition once per repetition (all rigged),
+    // plus that block's filler rounds dispersed among them
+    const blocks = Array.from({ length: NUM_BLOCKS }, (_, blockIndex) => {
+      const rounds = shuffle(conditions, rng).map((condition): RoundConfig => ({
+        roundIndex: 0, // temp value before blocks are joined in this functions return
+        blockIndex,
         ...condition,
         totalCards: config.totalCards,
-        lossPositions: placeLossCards(condition.numberLossCards, config.totalCards, rng),
-        rigged: false,
-        lossOnFlipNum: null
-    }))
+        fillerLossPositions: [], // rigged rounds don't use loss positions; assignRigging sets the loss flip
+        riggedLossFlip: null,
+        roundType: 'rigged'
+      }))
+      return buildFillerRounds(config, assignRigging(rounds, config, rng), blockIndex, rng)
+    })
 
-    // Assign the rounds that are supposed to be rigged. Return the array
-    return assignRigging(rounds, config, rng)
+    return blocks.flat().map((round, i) => ({
+      ...round,
+      roundIndex: i
+    }))
 }

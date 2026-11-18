@@ -1,0 +1,8 @@
+# Access key for the CaipersCCT relay, which carries the chat between this computer and the
+# proctor's computer when the partner is a student ("actualPartner": "student" in
+# Chat.config.json). Not needed when the partner is the AI.
+#
+# Paste the key on its own line below this text, save, and restart CaipersCCT. Use the same
+# key on the participant and proctor computers. Lines starting with # are ignored.
+#
+# Keep this file private: anyone with the key can connect to the lab's relay.

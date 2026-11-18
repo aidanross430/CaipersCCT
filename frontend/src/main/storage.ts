@@ -64,28 +64,21 @@ async function readOptionalJsonl<T>(path: string): Promise<T[]> {
     .map((line) => JSON.parse(line) as T)
 }
 
-// Creates a 'rounds csv' which builds out one round per code\
-
+// Creates a 'rounds csv' with one row per round. Each rounds.jsonl line already carries the
+// round's design, so nothing needs looking up in session.json
 function buildRoundsCsv(session: SessionFile, rounds: RoundResponse[]): string {
-    // Look up each round's settings by roundIndex
-    const configs = new Map(session.roundConfigs.map((c) => [c.roundIndex, c]))
-
     // Builds out the csv header
     const header = [
-        'participantId', 'roundIndex', 'isPractice', 'gainAmount', 'lossAmount',
-        'numberLossCards', 'rigged', 'lossOnFlipNum', 'endReason',
+        'participantId', 'roundIndex', 'blockIndex', 'block', 'roundType', 'gainAmount', 'lossAmount',
+        'numberLossCards', 'fillerLossPositions', 'riggedLossFlip', 'actualLossFlip', 'endReason',
         'gainCardsFlipped', 'roundScore', 'trialScore'
     ]
 
-    // Indicates what the configuration was for each round
-    const rows = rounds.map((r) => {
-        const c = configs.get(r.roundIndex)
-        return [
-        session.participantId, r.roundIndex, c?.isPractice, c?.gainAmount, c?.lossAmount,
-        c?.numberLossCards, c?.rigged, c?.lossOnFlipNum, r.endReason,
+    const rows = rounds.map((r) => [
+        session.participantId, r.roundIndex, r.blockIndex, r.block, r.roundType, r.gainAmount, r.lossAmount,
+        r.numberLossCards, r.fillerLossPositions.join(' '), r.riggedLossFlip, r.actualLossFlip, r.endReason,
         r.gainCardsFlipped, r.roundScore, r.trialScore
-        ]
-    })
+    ])
 
     // Creates the csv string
     return toCsv(header, rows)
@@ -111,15 +104,15 @@ function buildFlipsCsv(session: SessionFile, rounds: RoundResponse[]): string {
 // Builds out a csv file with one row per chat message, from either side, in the order sent
 function buildMessagesCsv(session: SessionFile, messages: ChatMessage[]): string {
     const header = [
-        'participantId', 'roundIndex', 'sentAt', 'sender', 'flipsSoFar', 'text',
-        'adviceCondition', 'suggestedTotalFlips', 'adviceAction', 'source', 'error'
+        'participantId', 'roundIndex', 'sentAt', 'sender', 'text',
+        'adviceCondition', 'suggestedTotalFlips', 'source', 'error'
     ]
 
     // Advice columns and source are only filled for partner messages, and error only for
     // system records of a failed reply; other rows leave them empty
     const rows = messages.map((m) => [
-        session.participantId, m.roundIndex, m.sentAt, m.sender, m.flipsSoFar, m.text,
-        m.advice?.condition, m.advice?.suggestedTotalFlips, m.advice?.action, m.source, m.error
+        session.participantId, m.roundIndex, m.sentAt, m.sender, m.text,
+        m.advice?.condition, m.advice?.suggestedTotalFlips, m.source, m.error
     ])
 
     return toCsv(header, rows)

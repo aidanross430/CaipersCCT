@@ -8,12 +8,13 @@
 //  3. If anything is wrong, loadOptions throws an OptionsError and the app refuses to start
 
 import { constants } from 'fs'
-import { copyFile, mkdir, readFile } from 'fs/promises'
+import { access, copyFile, mkdir, readFile } from 'fs/promises'
 import { createHash } from 'crypto'
 import { join } from 'path'
 import {
   ADVICE_CONDITIONS,
   DISPLAY_CONDITIONS,
+  PARTNER_CONDITIONS,
   CONFIG_FILES,
   PROMPT_FILES,
   PROMPT_PLACEHOLDERS,
@@ -21,6 +22,8 @@ import {
   type DesignConfig,
   type Options
 } from '../shared/options'
+import { isInt, isObject, show } from '../shared/check'
+import { relayUrlProblem } from '../shared/partner/relay'
 
 // Thrown when Options/ has problems. message lists every problem, one per line
 export class OptionsError extends Error {
@@ -51,6 +54,16 @@ export async function loadOptions(optionsDir: string, defaultsDir: string): Prom
   if (chat.error) report(CONFIG_FILES.chat, [chat.error])
   else report(CONFIG_FILES.chat, validateChatConfig(chat.value))
 
+  // style.md was split in two. Copying in the defaults above won't touch an old style.md, so
+  // without this a researcher's edits to it would be silently ignored in favour of the default
+  // style.ai.md. Refuse to start until they've been moved over
+  if (await exists(join(optionsDir, RETIRED_STYLE_FILE))) {
+    report(RETIRED_STYLE_FILE, [
+      `has been split into ${PROMPT_FILES.styleHuman} (used when participants are told their partner is a person) ` +
+        `and ${PROMPT_FILES.styleAi} (told it's an AI). Move any edits into those files, then delete ${RETIRED_STYLE_FILE}`
+    ])
+  }
+
   const prompts = {} as Options['prompts']
   for (const [key, file] of Object.entries(PROMPT_FILES) as [keyof Options['prompts'], string][]) {
     prompts[key] = await readFile(join(optionsDir, file), 'utf8')
@@ -70,6 +83,18 @@ export async function loadOptions(optionsDir: string, defaultsDir: string): Prom
 // hash ran with identical settings and wording, which makes them easy to group in analysis
 export function optionsHash(options: Options): string {
   return createHash('sha256').update(JSON.stringify(options)).digest('hex').slice(0, 12)
+}
+
+// The single style template from before the perceived-partner split
+const RETIRED_STYLE_FILE = 'style.md'
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
 }
 
 async function copyIfMissing(from: string, to: string): Promise<void> {
@@ -97,23 +122,29 @@ async function readJson(path: string): Promise<{ value?: unknown; error?: string
 
 const DESIGN_KEYS = [
   'totalCards',
-  'numRounds',
   'gainAmounts',
   'lossAmounts',
   'lossCardCounts',
-  'repititionsPerCondition',
-  'rigging'
+  'repititionsPerConditionPerBlock',
+  'numFillerRoundsPerBlock',
+  'riggedLossCardWindow'
 ]
 
 export function validateDesignConfig(value: unknown): string[] {
   if (!isObject(value)) return ['must be a JSON object, { ... }']
   const problems = unknownKeys(value, DESIGN_KEYS)
 
-  const { totalCards, numRounds, gainAmounts, lossAmounts, lossCardCounts, repititionsPerCondition, rigging } =
-    value
+  const {
+    totalCards,
+    gainAmounts,
+    lossAmounts,
+    lossCardCounts,
+    repititionsPerConditionPerBlock,
+    numFillerRoundsPerBlock,
+    riggedLossCardWindow
+  } = value
 
   if (!isInt(totalCards) || totalCards < 2) problems.push(`totalCards must be a whole number of at least 2 (got ${show(totalCards)})`)
-  if (!isInt(numRounds) || numRounds < 1) problems.push(`numRounds must be a whole number of at least 1 (got ${show(numRounds)})`)
   problems.push(...positiveList('gainAmounts', gainAmounts))
   problems.push(...positiveList('lossAmounts', lossAmounts))
 
@@ -125,37 +156,25 @@ export function validateDesignConfig(value: unknown): string[] {
     }
   }
 
-  if (!isInt(repititionsPerCondition) || repititionsPerCondition < 1) {
-    problems.push(`repititionsPerCondition must be a whole number of at least 1 (got ${show(repititionsPerCondition)})`)
+  if (!isInt(repititionsPerConditionPerBlock) || repititionsPerConditionPerBlock < 1) {
+    problems.push(`repititionsPerCondition must be a whole number of at least 1 (got ${show(repititionsPerConditionPerBlock)})`)
   }
 
-  // numRounds must match the design, or the round count and the conditions disagree
-  if (
-    problems.length === 0 &&
-    isInt(numRounds) &&
-    Array.isArray(gainAmounts) &&
-    Array.isArray(lossAmounts) &&
-    Array.isArray(lossCardCounts) &&
-    isInt(repititionsPerCondition)
-  ) {
-    const product = gainAmounts.length * lossAmounts.length * lossCardCounts.length * repititionsPerCondition
-    if (numRounds !== product) {
-      problems.push(
-        `numRounds is ${numRounds}, but gainAmounts × lossAmounts × lossCardCounts × repititionsPerCondition = ` +
-          `${gainAmounts.length} × ${lossAmounts.length} × ${lossCardCounts.length} × ${repititionsPerCondition} = ${product}`
-      )
+  if (!isInt(numFillerRoundsPerBlock) || numFillerRoundsPerBlock < 0) {
+    problems.push(`numFillerRoundsPerBlock must be an integer, 0 or greater. (got ${show(numFillerRoundsPerBlock)})`)
+  }
+
+  // The window can't reach back past flip 1. The tightest round is the one with the most loss
+  // cards: its loss can fall on flips 1 to (totalCards - mostLossCards + 1)
+  if (!isInt(riggedLossCardWindow) || riggedLossCardWindow < 1) {
+    problems.push(`riggedLossCardWindow must be a whole number of at least 1 (got ${show(riggedLossCardWindow)})`)
+  } else if (countProblems.length === 0 && isInt(totalCards)) {
+    const maxWindow = totalCards - Math.max(...(lossCardCounts as number[])) + 1
+    if (riggedLossCardWindow > maxWindow) {
+      problems.push(`riggedLossCardWindow can be at most ${maxWindow} with ${totalCards} cards and up to ${Math.max(...(lossCardCounts as number[]))} loss cards (got ${riggedLossCardWindow})`)
     }
   }
 
-  if (!isObject(rigging)) {
-    problems.push('rigging must be an object, { "roundsRigged": ... }')
-  } else {
-    problems.push(...unknownKeys(rigging, ['roundsRigged'], 'rigging.'))
-    const { roundsRigged } = rigging
-    if (!isInt(roundsRigged) || roundsRigged < 0 || (isInt(numRounds) && roundsRigged > numRounds)) {
-      problems.push(`rigging.roundsRigged must be a whole number from 0 to numRounds (got ${show(roundsRigged)})`)
-    }
-  }
   return problems
 }
 
@@ -163,25 +182,43 @@ const CHAT_KEYS = [
   'riskyFlips',
   'safeFlips',
   'adviceCondition',
-  'displayCondition',
+  'perceivedPartner',
+  'actualPartner',
   'personas',
   'greeting',
   'readDelayMs',
-  'typingDelayMs'
+  'typingDelayMs',
+  'relayUrl'
 ]
 
 export function validateChatConfig(value: unknown): string[] {
   if (!isObject(value)) return ['must be a JSON object, { ... }']
   const problems = unknownKeys(value, CHAT_KEYS)
-  const { riskyFlips, safeFlips, adviceCondition, displayCondition, personas, greeting, readDelayMs, typingDelayMs } = value
+  const {
+    riskyFlips,
+    safeFlips,
+    adviceCondition,
+    perceivedPartner,
+    actualPartner,
+    personas,
+    greeting,
+    readDelayMs,
+    typingDelayMs,
+    relayUrl
+  } = value
 
   if (!isInt(riskyFlips) || riskyFlips < 0) problems.push(`riskyFlips must be a whole number of 0 or more (got ${show(riskyFlips)})`)
   if (!isInt(safeFlips) || safeFlips < 0) problems.push(`safeFlips must be a whole number of 0 or more (got ${show(safeFlips)})`)
   if (!ADVICE_CONDITIONS.includes(adviceCondition as never)) {
     problems.push(`adviceCondition must be one of ${ADVICE_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(adviceCondition)})`)
   }
-  if (!DISPLAY_CONDITIONS.includes(displayCondition as never)) {
-    problems.push(`displayCondition must be one of ${DISPLAY_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(displayCondition)})`)
+  // Who participants are told they're chatting with, and who actually replies. Independent,
+  // so any combination is allowed
+  if (!DISPLAY_CONDITIONS.includes(perceivedPartner as never)) {
+    problems.push(`perceivedPartner must be one of ${DISPLAY_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(perceivedPartner)})`)
+  }
+  if (!PARTNER_CONDITIONS.includes(actualPartner as never)) {
+    problems.push(`actualPartner must be one of ${PARTNER_CONDITIONS.map((c) => `"${c}"`).join(', ')} (got ${show(actualPartner)})`)
   }
 
   if (!isObject(personas)) {
@@ -204,6 +241,19 @@ export function validateChatConfig(value: unknown): string[] {
   if (typeof greeting !== 'string') problems.push(`greeting must be text (got ${show(greeting)})`)
   problems.push(...delayRange('readDelayMs', readDelayMs))
   problems.push(...delayRange('typingDelayMs', typingDelayMs))
+
+  // Only a student partner goes through the relay, so an LLM setup can leave relayUrl out or
+  // empty. Anything that is filled in is still checked, so a typo doesn't wait to surface until
+  // the condition is switched to "student"
+  const RELAY_URL_EXAMPLE = '"wss://relay.example.org/v1"'
+  if (relayUrl !== undefined && typeof relayUrl !== 'string') {
+    problems.push(`relayUrl must be text, e.g. ${RELAY_URL_EXAMPLE} (got ${show(relayUrl)})`)
+  } else if (relayUrl !== undefined && relayUrl.trim() !== '') {
+    const problem = relayUrlProblem(relayUrl)
+    if (problem) problems.push(`relayUrl ${problem}`)
+  } else if (actualPartner === 'student') {
+    problems.push(`relayUrl is needed when actualPartner is "student": the relay's address, e.g. ${RELAY_URL_EXAMPLE}`)
+  }
   return problems
 }
 
@@ -228,19 +278,6 @@ export function validateTemplate(template: string): string[] {
 }
 
 // --- small helpers ---
-
-function isObject(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-}
-
-function isInt(v: unknown): v is number {
-  return Number.isInteger(v)
-}
-
-// JSON.stringify shows strings in quotes and handles undefined (a missing key)
-function show(v: unknown): string {
-  return v === undefined ? 'nothing' : JSON.stringify(v)
-}
 
 // Unexpected keys are usually typos ("roundRigged"), which would otherwise be silently ignored
 function unknownKeys(obj: Record<string, unknown>, allowed: string[], prefix = ''): string[] {

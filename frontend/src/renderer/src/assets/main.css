@@ -150,6 +150,34 @@ button {
   font-size: 16px;
   min-width: 220px;
 }
+/* The student-partner session code, at the left of the actions row. Same label style as the
+   participant ID field, so the row reads as one set of controls */
+.session-code {
+  margin-right: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.session-code .code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--ink);
+}
+.session-code .state {
+  font-weight: 500;
+}
+.session-code .state.ok {
+  color: var(--gain);
+}
+.session-code .state.bad {
+  color: var(--loss);
+  max-width: 420px;
+}
 
 /* ---------- Task ---------- */
 .trial {
@@ -194,9 +222,72 @@ button {
 }
 
 .grid {
+  --cols: 8;
+  --gap: 16px;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: var(--gap);
+  container-type: inline-size; /* card text sizes from the grid's width (cqw), not the window's */
+}
+
+/* The round page is exactly one window tall, so the whole board shows on any monitor. The
+   grid takes whatever height is left and, when that's the tighter limit, narrows until its
+   rows fit (the cards keep their shape). Only the task page opts in, since the grid area has
+   no height of its own anywhere else */
+.trial-play {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.trial-play > * {
+  flex: none;
+}
+.trial-play .trial-badge {
+  align-self: flex-start;
+}
+/* Below the badge: the board, and in the advised block the chat to its right. Takes the rest
+   of the window's height; the board column is the same flex column the page used to be, so
+   the grid still fits itself to the height that's left */
+.trial-play .play-columns {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+}
+.trial-play .play-columns.with-chat {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+}
+.trial-play .play-board {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.trial-play .play-board > * {
+  flex: none;
+}
+/* The chat fills the column's height (instead of its usual fixed 630px); messages scroll */
+.trial-play .play-columns .chat {
+  height: auto;
+  min-height: 0;
+}
+.trial-play .grid-area {
+  flex: 1;
+  min-height: 0;
+  container-type: size;
+}
+.trial-play .grid {
+  --rows: round(up, var(--cards) / var(--cols), 1);
+  /* The width at which the rows exactly fill the area's height: card height from the rows,
+     card width from the 110 / 144 card shape, then the columns and gaps across */
+  width: min(
+    100%,
+    calc(
+      (100cqh - (var(--rows) - 1) * var(--gap)) / var(--rows) * 110 / 144 * var(--cols) +
+        (var(--cols) - 1) * var(--gap)
+    )
+  );
+  margin: 0 auto;
 }
 .card {
   aspect-ratio: 110 / 144;
@@ -207,7 +298,7 @@ button {
   align-items: center;
   justify-content: center;
   color: var(--faint);
-  font-size: clamp(32px, 4.4vw, 60px);
+  font-size: clamp(20px, 4.9cqw, 60px);
   font-weight: 300;
   line-height: 1;
   user-select: none;
@@ -220,7 +311,7 @@ button {
 }
 .card.gain,
 .card.loss {
-  font-size: clamp(16px, 2vw, 26px);
+  font-size: clamp(12px, 2.1cqw, 26px);
   font-weight: 700;
 }
 .card.gain {
@@ -279,13 +370,8 @@ button {
   color: var(--body);
 }
 
-/* ---------- Play area + chat (from the mockup) ---------- */
-.play {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 32px;
-  align-items: start;
-}
+
+/* ---------- Chat (from the mockup) ---------- */
 .chat {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -401,13 +487,112 @@ button {
   cursor: not-allowed;
 }
 
-/* Narrower windows: chat goes under the cards */
-@media (max-width: 1100px) {
-  .play {
+/* ---------- Proctor client (--mode=proctor) ---------- */
+.code-input {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  font-size: 24px !important;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.field-error {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--loss);
+  max-width: 320px;
+}
+.proctor-notice {
+  background: var(--loss-bg);
+  color: var(--loss) !important;
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.proctor-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.proctor-bar .trial-badge {
+  margin-bottom: 0;
+}
+.proctor-bar .code {
+  font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  letter-spacing: 0.12em;
+}
+.status-pill {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--chip-ink);
+}
+.status-pill.ok {
+  background: var(--gain-bg);
+  color: var(--gain);
+}
+.status-pill.bad {
+  background: var(--loss-bg);
+  color: var(--loss);
+}
+.btn-secondary {
+  margin-left: auto;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  padding: 9px 18px;
+}
+.btn-secondary:hover {
+  border-color: var(--ink);
+}
+.proctor-note {
+  font-size: 16px;
+  color: var(--body);
+  margin: 0 0 24px;
+}
+/* Activity on the left, chat on the right; stacked on narrow windows */
+.proctor-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .proctor-layout {
     grid-template-columns: 1fr;
   }
-  .chat {
-    height: 380px;
+}
+.proctor-layout .chat {
+  height: 560px;
+}
+.proctor-round .round-score {
+  margin: 16px 0;
+}
+/* The participant's board, smaller: the proctor only needs to see what's been turned */
+.mini-grid {
+  --gap: 8px;
+  max-width: 560px;
+}
+.mini-grid .card {
+  border-radius: 6px;
+}
+.proctor-end {
+  margin-top: 16px;
+}
+
+/* Shorter windows: less padding around the board, leaving more height for the cards */
+@media (max-height: 800px) {
+  .trial-play {
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+  .trial-play .trial-badge {
+    margin-bottom: 16px;
   }
 }
 
@@ -427,7 +612,7 @@ button {
     gap: 6px;
   }
   .grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
+    --cols: 4;
+    --gap: 10px;
   }
 }

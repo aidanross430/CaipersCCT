@@ -15,21 +15,22 @@ export type SessionFile = SessionStartPayload & {
 
 
 export type TrialConfig = {
-    designSeed: number                      // The rng seed for the design
-    chatDisplayCondition: 'human' | 'ai'    // Is the participant told they are talking to a human or LLM?
+    designSeed: number                  // The rng seed for the design
+    perceivedPartner: 'human' | 'ai'    // Who do we tell the participant they are talking to?
+    actualPartner: 'student' | 'llm'    // Who is the participant actually talking to
 }
 
 // The settings for each round, determining number of loss cards and each card's point worth
 export type RoundConfig = {
     roundIndex: number              // what number round are we on?
-    isPractice: boolean             // will not add round score to final score.
+    blockIndex: number              // Which block are we on?
     gainAmount: number              // how many points are each gain card worth?
     lossAmount: number              // how many points are each loss card worth?
     numberLossCards: number         // how many loss cards are in this round?
     totalCards: number               // The number of cards in this round
-    lossPositions: number[]         // On non-rigged rounds, where are the loss cards?
-    rigged: boolean                 // loss card position not determined by rng seed but by flip #
-    lossOnFlipNum: number | null    // for rigged trials, what flip is the loss on?
+    fillerLossPositions: number[]         // Filler rounds only: where are the loss cards? (empty when rigged)
+    riggedLossFlip: number | null    // Rigged rounds only: which flip is the loss on? (null for filler)
+    roundType: 'rigged' | 'filler'  // rigged: loss decided by flip # (analysed). filler: real loss positions, not analysed
 }
 
 // Data structure for each flip the participant performs
@@ -46,17 +47,24 @@ export type RoundEndReason = 'stopped' | 'loss' | 'allGainsRevealed'
 
 // Round Responses - this is basically the data that will be exported for each round
 // in the trial
-export type RoundResponse = {
-    roundIndex: number         // Which Round was this?
+// Each line of rounds.jsonl is one of these, so it carries the round's design alongside the
+// outcome: a session that ends early still has everything needed to analyse its rounds
+export type RoundResponse = Pick<RoundConfig,
+    'roundIndex' | 'blockIndex' | 'roundType' | 'gainAmount' | 'lossAmount' | 'numberLossCards' | 'fillerLossPositions' | 'riggedLossFlip'> & {
+    block: Block               // Was this round played in the solo or advised block?
     flips: CardFlip[]          // The set of flip data
     endReason: RoundEndReason  // Why did the round end?
+    actualLossFlip: number | null  // The flip the participant actually lost on (both round types); null if they never hit a loss
     gainCardsFlipped: number   // How many gain cards were flipped?
     trialScore: number         // What is the trials score at the end of this round?
     roundScore: number          // The score gained or lost during this specific round
 }
 
+// For the within-subject design: the no advice block or the advice block
+export type Block = 'solo' | 'advised'
+
 // Which phase of the trial is the user on
-export type Phase = 'welcome' | 'task' | 'complete'  //Will have more phases: ex. practice, complete, setup
+export type Phase = 'welcome' | 'task' | 'complete' | 'interlude'  //Will have more phases: ex. practice, complete, setup
 
 // The user's sessionData
 export type SessionData = {
@@ -67,16 +75,15 @@ export type SessionData = {
     roundResponses: RoundResponse[]     // The set of outcomes for each round
     localDate: string                        // Timestamp data for session (was useful for PID fixing in the past)
     sessionStart: string
+    block: Block                        // For the within-subject design, is this the no advice or advice trial block?
 }
 
 // Types for the advice engine
 
-// The advice provided to the LLM
+// The advice provided to the LLM, for the round being played
 export type Advice = {
     condition: AdviceCondition      // Risky, optimal, or safe
-    suggestedTotalFlips: number     // How many total flips are suggested this round
-    flipsSoFar: number              // How many flips have there been this round so far
-    action: 'flip' | 'stop'         // What should the user do?
+    suggestedTotalFlips: number     // How many total flips are suggested for that round
 }
 
 export type AdviceCondition = 'risky' | 'optimal' | 'safe'
@@ -86,9 +93,8 @@ export type ChatMessage = {
     sender: 'participant' | 'advice_giver' | 'system'  // 'system' = a logged event (e.g. a failed reply), never shown as a chat bubble
     text: string                            // The message sent
     sentAt: string
-    roundIndex: number                      // which round
-    flipsSoFar: number
-    advice?: Advice                         // The advice provided for this response.
-    source?: 'llm' | 'fallback'             // Partner messages only: who wrote the text
+    roundIndex: number                      // the round the chat happened in (chat is open during rounds, advised block only)
+    advice?: Advice                        // The advice provided for this response.
+    source?: 'llm' | 'student' | 'fallback'  // Partner messages only: who wrote the text
     error?: string                          // System records only: why the partner couldn't reply
 }

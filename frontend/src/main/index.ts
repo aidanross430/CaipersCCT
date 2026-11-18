@@ -10,9 +10,19 @@ import type { ChatRequest } from '../shared/ipc';
 import type { ChatMessage } from '../shared/types';
 import { chatReply, setApiKey } from './llm';
 import { API_KEY_FILE, readApiKey } from './apiKey';
-import { loadOptions, optionsHash, OptionsError } from './options';
-import type { Options } from '../shared/options';
+import { loadOptions, optionsHash, OptionsError, validateChatConfig } from './options';
+import { CONFIG_FILES, type Options } from '../shared/options';
+import { applyCondition, readLaunchCondition, readLaunchMode } from './launchCondition';
+import { startProctor } from './proctor';
 import { appendMessage } from './storage';
+import type { ParticipantLink, PartnerStatus } from '../shared/partner/link';
+import type { ProctorView } from '../shared/partner/protocol';
+import { createFakeLink } from './partner/fakeLink';
+import { createParticipantRelayLink } from './partner/relayClient';
+import { RELAY_KEY_FILE, readRelayKey } from './relayKey';
+
+// CCT_FAKE_PROCTOR=1 swaps in the stand-in proctor (fakeLink.ts), for UI work without a relay
+const FAKE_PROCTOR = process.env.CCT_FAKE_PROCTOR === '1'
 
 // Sessions created during this run of the app: id -> folder path.
 // The renderer can only refer to sessions that main created.
@@ -86,6 +96,34 @@ app.whenReady().then(async () => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  // Proctor.bat (--mode=proctor) runs the proctor client instead, which needs none of the
+  // participant setup below (main/proctor.ts)
+  const mode = readLaunchMode(process.argv)
+  if (!mode.ok) {
+    dialog.showErrorBox('CaipersCCT was started the wrong way', `${mode.problem}\n\nREADME.txt lists the launchers.`)
+    app.quit()
+    return
+  }
+  if (mode.mode === 'proctor') {
+    await startProctor({ optionsDir: join(baseDir(), 'Options'), defaultsDir: defaultsDir() })
+    return
+  }
+
+  // Which condition to run, from the launcher (launchCondition.ts). A packaged build must be
+  // started from a launcher; npm run dev may leave it to Chat.config.json
+  const launch = readLaunchCondition(process.argv)
+  if (!launch.ok || (launch.condition === null && app.isPackaged)) {
+    dialog.showErrorBox(
+      'Start CaipersCCT from a condition launcher',
+      `${launch.ok ? 'CaipersCCT was started without a condition.' : launch.problem}\n\n` +
+        'Close this, then double-click one of the launchers in the CaipersCCT folder ' +
+        '(Condition A.bat to Condition D.bat). README.txt says which condition is which.'
+    )
+    app.quit()
+    return
+  }
+  const condition = launch.condition
+
   const dataDir = join(baseDir(), 'Output')
 
   // Refuse to start if session data can't be saved, rather than failing mid-session
@@ -107,11 +145,33 @@ app.whenReady().then(async () => {
   const optionsDir = join(baseDir(), 'Options')
   let options: Options
   let apiKey: string | null
+  let relayKey: string | null = null
   try {
     options = await loadOptions(optionsDir, defaultsDir())
+    // The launcher's condition replaces Chat.config.json's, before anything is hashed or
+    // recorded. Checked again, since some settings depend on the partner (a student partner
+    // needs relayUrl, which an LLM setup may have left empty)
+    if (condition) {
+      options = applyCondition(options, condition)
+      const problems = validateChatConfig(options.chat)
+      if (problems.length > 0) {
+        throw new OptionsError(problems.map((p) => `${CONFIG_FILES.chat} (Condition ${condition}): ${p}`))
+      }
+    }
     // Read separately from the other options and kept in main only: never sent to the
     // renderer or written to session.json
     apiKey = await readApiKey(optionsDir, defaultsDir())
+    // Only a student partner goes through the relay. Without the key the proctor can never
+    // connect, so it's treated like any other broken setting rather than a warning
+    if (options.chat.actualPartner === 'student' && !FAKE_PROCTOR) {
+      relayKey = await readRelayKey(optionsDir, defaultsDir())
+      if (!relayKey) {
+        throw new OptionsError([
+          `${RELAY_KEY_FILE}: no relay key yet. It's needed because this condition's partner is a ` +
+            'student, who connects through the relay. Paste the key the lab gave you on its own line'
+        ])
+      }
+    }
   } catch (err) {
     const details =
       err instanceof OptionsError
@@ -198,6 +258,42 @@ app.whenReady().then(async () => {
     const dir = sessionDir(sessionId)
     await queue.run(sessionId, () => appendMessage(dir, message))
   })
+
+  // For the student partner condition. Gated on actualPartner (who really replies), never on
+  // perceivedPartner (who participants are told they're chatting with). The proctor reaches
+  // this app through the hosted relay; relayUrl and relayKey were checked at startup above
+  let link: ParticipantLink | null = null
+  if (options.chat.actualPartner === 'student') {
+    link =
+      FAKE_PROCTOR
+        ? createFakeLink()
+        : createParticipantRelayLink({
+            url: options.chat.relayUrl ?? '',
+            token: relayKey ?? '',
+            onProblem: (problem) => console.warn('[partner]', problem)
+          })
+  }
+  // Kept so a renderer that loads after a status change can still ask for it
+  let partnerStatus: PartnerStatus | null = null
+
+  // Sent to every window: there's only one, but on macOS it can be closed and reopened
+  const push = (channel: string, value: unknown): void => {
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, value)
+  }
+  link?.onStatus((status) => {
+    partnerStatus = status
+    push(IPC.partnerStatus, status)
+  })
+  link?.onMessage((message) => {
+    // The handshake is the link's business; the renderer only sees chat and typing
+    if (message.type !== 'handshake') push(IPC.partnerMessage, message)
+  })
+  ipcMain.on(IPC.partnerPublish, (_event, view: ProctorView) => {
+    if (typeof view !== 'object' || view === null) return
+    link?.send({ type: 'view', view })
+  })
+  ipcMain.handle(IPC.partnerStatusGet, () => partnerStatus)
+  app.on('before-quit', () => link?.close())
 
 
   createWindow()

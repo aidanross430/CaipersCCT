@@ -2,12 +2,14 @@
   "riskyFlips": 7,
   "safeFlips": 7,
   "adviceCondition": "risky",
-  "displayCondition": "ai",
+  "perceivedPartner": "ai",
+  "actualPartner": "llm",
   "personas": {
     "human": { "name": "Pat", "avatar": "P" },
     "ai": { "name": "Claude Opus 5.5", "avatar": "AI" }
   },
   "greeting": "Feel free to ask the assistant for help!",
   "readDelayMs": [600, 1500],
-  "typingDelayMs": [900, 1500]
+  "typingDelayMs": [900, 1500],
+  "relayUrl": ""
 }

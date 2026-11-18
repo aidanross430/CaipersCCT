@@ -9,6 +9,8 @@ type SessionAction =
     | {type: 'START'; participantId: string, trialConfig: TrialConfig, roundConfigs: RoundConfig[], sessionStart:string, localDate: string}
     | {type: 'ROUND_COMPLETE'; response: RoundResponse }
     | {type: 'FINISH'}
+    | {type: 'BLOCK_COMPLETE'}
+    | {type: 'INTERLUDE_COMPLETE'}
 
 
 export const initialSession: SessionData = {
@@ -16,12 +18,14 @@ export const initialSession: SessionData = {
     phase: 'welcome',
     trialConfig: {
         designSeed: 0,
-        chatDisplayCondition: 'ai'      // placeholder: replaced at START by displayCondition in Chat.config.json
+        perceivedPartner: 'ai',               // placeholders: replaced at START by perceivedPartner
+        actualPartner: 'llm'                  //   and actualPartner from Chat.config.json
     },
     roundConfigs: [],
     roundResponses: [],
     localDate: '',
-    sessionStart: ''
+    sessionStart: '',
+    block: 'solo'                       // Should first block always be solo?
 }
 // Takes the current state of the session and changes it depending on the user's action
 export function sessionReducer(state: SessionData, action: SessionAction): SessionData {
@@ -34,7 +38,8 @@ export function sessionReducer(state: SessionData, action: SessionAction): Sessi
                 roundConfigs: action.roundConfigs,
                 phase: 'task',
                 localDate: action.localDate,
-                sessionStart: action.sessionStart
+                sessionStart: action.sessionStart,
+                // If we want counterbalancing to blocks, add that here
             }
         case "ROUND_COMPLETE":
             return {
@@ -45,6 +50,17 @@ export function sessionReducer(state: SessionData, action: SessionAction): Sessi
             return {
                 ...state,
                 phase: 'complete'
+            }
+        case "BLOCK_COMPLETE":
+            return {
+                ...state,
+                phase: 'interlude'
+            }
+        case "INTERLUDE_COMPLETE":
+            return {
+                ...state,
+                phase: 'task',
+                block: state.block === 'solo' ? 'advised' : 'solo' 
             }
     }        
 }

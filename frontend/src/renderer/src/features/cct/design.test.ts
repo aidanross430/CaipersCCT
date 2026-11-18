@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { createRng, buildConditions, shuffle, placeLossCards, buildRoundConfigs } from './design'
+import { createRng, buildConditions, shuffle, placeLossCards, buildRoundConfigs, NUM_BLOCKS } from './design'
 import type { DesignConfig } from '../../../../shared/options'
 
 // A fixed design for these tests, so they don't change when someone edits Design.config.json.
@@ -214,21 +214,23 @@ describe('buildRoundConfig', () => {
     const rounds = buildRoundConfigs(TEST_DESIGN, 1)
 
     expect(Array.isArray(rounds)).toBe(true)
-    expect(rounds.length).toEqual(TEST_DESIGN.numRounds)
+    // every condition, repeated repititionsPerCondition times, in each block
+    expect(rounds).toHaveLength(buildConditions(TEST_DESIGN).length * NUM_BLOCKS)
 
     // every round has every RoundConfig field, with the right type.
     // expect.any(Number) matches any number, so this checks shape, not specific values
     for (const round of rounds) {
       expect(round).toEqual({
         roundIndex: expect.any(Number),
+        blockIndex: expect.any(Number),
         isPractice: false,
         gainAmount: expect.any(Number),
         lossAmount: expect.any(Number),
         numberLossCards: expect.any(Number),
         totalCards: TEST_DESIGN.totalCards,
-        lossPositions: expect.any(Array),
+        fillerLossPositions: expect.any(Array),
         rigged: false,
-        lossOnFlipNum: null
+        riggedLossFlip: null
       })
     }
   })
@@ -243,13 +245,17 @@ describe('buildRoundConfig', () => {
     expect(indexes).toEqual(expected)
   })
 
-  it('each condition is unique when repitions=1', () => {
+  it('each condition is unique within a block when repitions=1', () => {
     const config = { ...TEST_DESIGN, repititionsPerCondition: 1}
     const rounds = buildRoundConfigs(config, 100)
 
     // Ensure each key created by the set of conditions is unique
-    const keys = rounds.map((r) => `${r.gainAmount}/${r.lossAmount}/${r.numberLossCards}`)
-    expect(new Set(keys).size).toBe(keys.length)    
+    for (let block = 0; block < NUM_BLOCKS; block++) {
+      const keys = rounds
+        .filter((r) => r.blockIndex === block)
+        .map((r) => `${r.gainAmount}/${r.lossAmount}/${r.numberLossCards}`)
+      expect(new Set(keys).size).toBe(keys.length)
+    }
   })
 
   it('identical seed gives identical result', () =>  {

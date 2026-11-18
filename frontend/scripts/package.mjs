@@ -2,8 +2,10 @@
 // then zips it:
 //
 //   release/CaipersCCT/
-//   ├── CaipersCCT.bat   double-click to start
-//   ├── README.txt       instructions for research assistants
+//   ├── Condition A.bat  double-click to start, one launcher per condition
+//   ├── ...              (A to D, see src/main/launchCondition.ts)
+//   ├── Proctor.bat      the proctor client, for the student partner's computer
+//   ├── README.txt       instructions for research assistants, including which condition is which
 //   ├── Options/         editable settings (copied from defaults/Options)
 //   ├── Output/          session data is written here
 //   └── app/             CaipersCCT.exe and its runtime files
@@ -39,21 +41,33 @@ await mkdir(outDir, { recursive: true })
 // The app itself goes one level down, so the top of the folder stays tidy
 await cp(unpacked, join(outDir, 'app'), { recursive: true })
 
-// The launcher. %~dp0 is the folder the .bat is in, so it works wherever the folder is
-// copied to. Written here with Windows line endings, which .bat files need
+// The launchers, one per condition. The packaged app refuses to start without --condition, so
+// these are the only way in. Neutral names, so a participant who sees the folder can't tell the
+// conditions apart; README.txt has the key. Must match CONDITIONS in src/main/launchCondition.ts.
+// %~dp0 is the folder the .bat is in, so they work wherever the folder is copied to. Written
+// with Windows line endings, which .bat files need
+for (const condition of ['A', 'B', 'C', 'D']) {
+  await writeFile(
+    join(outDir, `Condition ${condition}.bat`),
+    ['@echo off', `start "" "%~dp0app\\CaipersCCT.exe" --condition=${condition}`, ''].join('\r\n')
+  )
+}
+// And the proctor client, for the student partner's computer (src/main/proctor.ts)
 await writeFile(
-  join(outDir, 'CaipersCCT.bat'),
-  ['@echo off', 'start "" "%~dp0app\\CaipersCCT.exe"', ''].join('\r\n')
+  join(outDir, 'Proctor.bat'),
+  ['@echo off', 'start "" "%~dp0app\\CaipersCCT.exe" --mode=proctor', ''].join('\r\n')
 )
 
 await cp(join(root, 'packaging', 'README.txt'), join(outDir, 'README.txt'))
 
-// The api-key.txt template must hold instructions only: a key pasted into it by mistake
-// would be shipped in the zip (and is already in the build via extraResources)
-const keyTemplate = await readFile(join(root, 'defaults', 'Options', 'api-key.txt'), 'utf8')
-if (keyTemplate.split(/\r?\n/).some((line) => line.trim() !== '' && !line.trim().startsWith('#'))) {
-  console.error('defaults/Options/api-key.txt contains more than # comment lines. Remove the key, then package again.')
-  process.exit(1)
+// The key templates must hold instructions only: a key pasted into one by mistake would be
+// shipped in the zip (and is already in the build via extraResources)
+for (const keyFile of ['api-key.txt', 'relay-key.txt']) {
+  const keyTemplate = await readFile(join(root, 'defaults', 'Options', keyFile), 'utf8')
+  if (keyTemplate.split(/\r?\n/).some((line) => line.trim() !== '' && !line.trim().startsWith('#'))) {
+    console.error(`defaults/Options/${keyFile} contains more than # comment lines. Remove the key, then package again.`)
+    process.exit(1)
+  }
 }
 
 // Default options. Files starting with "." (like .gitkeep) are repository housekeeping
