@@ -23,6 +23,7 @@ import {
   type Options
 } from '../shared/options'
 import { isInt, isObject, show } from '../shared/check'
+import { relayUrlProblem } from '../shared/partner/relay'
 
 // Thrown when Options/ has problems. message lists every problem, one per line
 export class OptionsError extends Error {
@@ -186,7 +187,8 @@ const CHAT_KEYS = [
   'personas',
   'greeting',
   'readDelayMs',
-  'typingDelayMs'
+  'typingDelayMs',
+  'relayUrl'
 ]
 
 export function validateChatConfig(value: unknown): string[] {
@@ -201,7 +203,8 @@ export function validateChatConfig(value: unknown): string[] {
     personas,
     greeting,
     readDelayMs,
-    typingDelayMs
+    typingDelayMs,
+    relayUrl
   } = value
 
   if (!isInt(riskyFlips) || riskyFlips < 0) problems.push(`riskyFlips must be a whole number of 0 or more (got ${show(riskyFlips)})`)
@@ -238,6 +241,19 @@ export function validateChatConfig(value: unknown): string[] {
   if (typeof greeting !== 'string') problems.push(`greeting must be text (got ${show(greeting)})`)
   problems.push(...delayRange('readDelayMs', readDelayMs))
   problems.push(...delayRange('typingDelayMs', typingDelayMs))
+
+  // Only a student partner goes through the relay, so an LLM setup can leave relayUrl out or
+  // empty. Anything that is filled in is still checked, so a typo doesn't wait to surface until
+  // the condition is switched to "student"
+  const RELAY_URL_EXAMPLE = '"wss://relay.example.org/v1"'
+  if (relayUrl !== undefined && typeof relayUrl !== 'string') {
+    problems.push(`relayUrl must be text, e.g. ${RELAY_URL_EXAMPLE} (got ${show(relayUrl)})`)
+  } else if (relayUrl !== undefined && relayUrl.trim() !== '') {
+    const problem = relayUrlProblem(relayUrl)
+    if (problem) problems.push(`relayUrl ${problem}`)
+  } else if (actualPartner === 'student') {
+    problems.push(`relayUrl is needed when actualPartner is "student": the relay's address, e.g. ${RELAY_URL_EXAMPLE}`)
+  }
   return problems
 }
 

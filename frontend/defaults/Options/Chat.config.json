@@ -10,5 +10,6 @@
   },
   "greeting": "Feel free to ask the assistant for help!",
   "readDelayMs": [600, 1500],
-  "typingDelayMs": [900, 1500]
+  "typingDelayMs": [900, 1500],
+  "relayUrl": ""
 }

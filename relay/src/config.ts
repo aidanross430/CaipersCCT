@@ -2,6 +2,7 @@
 // variables; timings are fixed defaults that tests can override through createRelayServer.
 // Like the participant app's options.ts: every problem is collected and the relay refuses to
 // start, rather than running with a setting it couldn't read
+import { MIN_TOKEN_LENGTH } from '@shared/partner/relay'
 
 export type RelayConfig = {
   port: number                 // PORT. Most hosts set this themselves
@@ -16,8 +17,8 @@ export type RelayConfig = {
   maxRoomAgeMs: number         // any room is closed after this long, however busy
 }
 
-// Shortest token accepted. `openssl rand -hex 32` gives 64 characters
-export const MIN_TOKEN_LENGTH = 32
+// Shortest token accepted. Shared with the lab apps' relay-key.txt check
+export { MIN_TOKEN_LENGTH }
 
 export const DEFAULTS = {
   port: 8080,

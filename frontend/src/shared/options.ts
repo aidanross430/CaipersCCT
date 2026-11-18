@@ -79,4 +79,8 @@ export type ChatConfig = {
     greeting: string                            // first message shown in the chat
     readDelayMs: [number, number]               // "is typing..." appears after a random delay in this range, as if reading the message first
     typingDelayMs: [number, number]             // then the reply appears no sooner than a further random delay in this range
+    // The relay that carries the chat to the proctor, e.g. "wss://relay.example.org/v1".
+    // Needed only when actualPartner is "student"; may be missing or "" otherwise.
+    // Its access key is in relay-key.txt (relayKey.ts), never here
+    relayUrl?: string
 }

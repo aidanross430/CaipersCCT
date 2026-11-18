@@ -139,7 +139,8 @@ describe('validateChatConfig', () => {
     personas: { human: { name: 'Pat', avatar: 'P' }, ai: { name: 'Claude', avatar: 'AI' } },
     greeting: 'hi',
     readDelayMs: [600, 1500],
-    typingDelayMs: [900, 1500]
+    typingDelayMs: [900, 1500],
+    relayUrl: 'wss://relay.example.org/v1'
   }
 
   it('accepts a valid chat config', () => {

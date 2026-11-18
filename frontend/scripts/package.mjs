@@ -48,12 +48,14 @@ await writeFile(
 
 await cp(join(root, 'packaging', 'README.txt'), join(outDir, 'README.txt'))
 
-// The api-key.txt template must hold instructions only: a key pasted into it by mistake
-// would be shipped in the zip (and is already in the build via extraResources)
-const keyTemplate = await readFile(join(root, 'defaults', 'Options', 'api-key.txt'), 'utf8')
-if (keyTemplate.split(/\r?\n/).some((line) => line.trim() !== '' && !line.trim().startsWith('#'))) {
-  console.error('defaults/Options/api-key.txt contains more than # comment lines. Remove the key, then package again.')
-  process.exit(1)
+// The key templates must hold instructions only: a key pasted into one by mistake would be
+// shipped in the zip (and is already in the build via extraResources)
+for (const keyFile of ['api-key.txt', 'relay-key.txt']) {
+  const keyTemplate = await readFile(join(root, 'defaults', 'Options', keyFile), 'utf8')
+  if (keyTemplate.split(/\r?\n/).some((line) => line.trim() !== '' && !line.trim().startsWith('#'))) {
+    console.error(`defaults/Options/${keyFile} contains more than # comment lines. Remove the key, then package again.`)
+    process.exit(1)
+  }
 }
 
 // Default options. Files starting with "." (like .gitkeep) are repository housekeeping

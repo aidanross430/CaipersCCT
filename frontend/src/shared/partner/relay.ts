@@ -44,6 +44,28 @@ export const MAX_ROOM_CODE_ATTEMPTS = 5
 //   screen or sent to the proctor. Format left to the relayClient (e.g. 32 hex characters)
 export const MIN_CLAIM_LENGTH = 16
 
+// Lab access token
+//   The shared secret every hello carries (RELAY_TOKEN on the relay, relay-key.txt on each lab
+//   machine). Shortest accepted on both sides; `openssl rand -hex 32` gives 64 characters
+export const MIN_TOKEN_LENGTH = 32
+
+// Relay address
+//   Must be wss:// (TLS), so the token and the session are encrypted on the way. ws:// is only
+//   allowed for a relay on this machine (npm run dev in relay/), where nothing crosses a network.
+//   Returns what's wrong, worded to follow the setting's name, or null if the address is usable
+const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]']
+export function relayUrlProblem(url: string): string | null {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return `isn't a valid address (got ${show(url)})`
+  }
+  if (parsed.protocol === 'wss:') return null
+  if (parsed.protocol === 'ws:' && LOCAL_HOSTS.includes(parsed.hostname)) return null
+  return `must start with wss:// (ws:// only works for a relay on this computer) (got ${show(url)})`
+}
+
 // Case-insensitive on input: the proctor UI should upper-case before sending, and this is the
 // check both the relay and validate.ts's handshake use
 export function isRoomCode(code: unknown): code is string {
